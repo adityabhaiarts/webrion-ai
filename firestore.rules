@@ -1,0 +1,146 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // PROFILES
+    function isValidProfile(data) {
+      return data.keys().hasAll(['email', 'plan']) &&
+             data.email is string && data.email.size() <= 200 &&
+             data.plan is string && data.plan in ['free', 'monthly', 'yearly'] &&
+             (!('full_name' in data) || (data.full_name is string && data.full_name.size() <= 100)) &&
+             (!('plan_status' in data) || (data.plan_status is string && data.plan_status.size() <= 50)) &&
+             (!('plan_started_at' in data) || data.plan_started_at is number) &&
+             (!('plan_expires_at' in data) || data.plan_expires_at is number) &&
+             (!('created_at' in data) || data.created_at is number);
+    }
+
+    match /profiles/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidProfile(incoming());
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidProfile(incoming());
+      allow delete: if false;
+    }
+
+    // CHATS
+    function isValidChat(data) {
+      return data.keys().hasAll(['user_id', 'created_at']) &&
+             data.user_id is string && data.user_id == request.auth.uid &&
+             (!('title' in data) || (data.title is string && data.title.size() <= 200)) &&
+             data.created_at is number &&
+             (!('updated_at' in data) || data.updated_at is number);
+    }
+
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && existing().user_id == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(chatId) && isValidChat(incoming());
+      allow update: if isSignedIn() && existing().user_id == request.auth.uid && isValidChat(incoming()) && incoming().user_id == existing().user_id;
+      allow delete: if isSignedIn() && existing().user_id == request.auth.uid;
+
+      // MESSAGES (Subcollection)
+      function isValidMessage(data) {
+        return data.keys().hasAll(['user_id', 'role', 'content', 'created_at']) &&
+               data.user_id is string && data.user_id == request.auth.uid &&
+               data.role is string && data.role in ['user', 'assistant'] &&
+               data.content is string && data.content.size() <= 100000 &&
+               data.created_at is number;
+      }
+      
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && existing().user_id == request.auth.uid;
+        allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
+        allow create: if isSignedIn() && isValidId(messageId) && isValidMessage(incoming()) &&
+                      get(/databases/$(database)/documents/chats/$(chatId)).data.user_id == request.auth.uid;
+        allow update: if false; // Messages are immutable
+        allow delete: if false;
+      }
+    }
+
+    // GENERATED WEBSITES
+    function isValidGeneratedWebsite(data) {
+      return data.keys().hasAll(['user_id', 'created_at', 'title']) &&
+             data.user_id is string && data.user_id == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             (!('chat_id' in data) || (data.chat_id is string && data.chat_id.size() <= 128)) &&
+             (!('website_type' in data) || (data.website_type is string && data.website_type.size() <= 100)) &&
+             (!('prompt' in data) || (data.prompt is string && data.prompt.size() <= 10000)) &&
+             (!('generated_files' in data) || data.generated_files is list) &&
+             (!('deployment_steps' in data) || (data.deployment_steps is string && data.deployment_steps.size() <= 50000)) &&
+             (!('suggestions' in data) || (data.suggestions is string && data.suggestions.size() <= 50000)) &&
+             data.created_at is number;
+    }
+
+    match /generated_websites/{websiteId} {
+      allow get: if isSignedIn() && existing().user_id == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(websiteId) && isValidGeneratedWebsite(incoming());
+      allow update: if isSignedIn() && existing().user_id == request.auth.uid && isValidGeneratedWebsite(incoming()) && incoming().user_id == existing().user_id;
+      allow delete: if isSignedIn() && existing().user_id == request.auth.uid;
+    }
+
+    // USAGE LIMITS
+    function isValidUsageLimit(data) {
+      return data.keys().hasAll(['user_id']) &&
+             data.user_id is string && data.user_id == request.auth.uid &&
+             (!('weekly_generation_count' in data) || data.weekly_generation_count is number) &&
+             (!('last_generation_at' in data) || data.last_generation_at is number) &&
+             (!('next_free_generation_at' in data) || data.next_free_generation_at is number) &&
+             (!('total_generations' in data) || data.total_generations is number) &&
+             (!('updated_at' in data) || data.updated_at is number);
+    }
+
+    match /usage_limits/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidUsageLimit(incoming());
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidUsageLimit(incoming());
+      allow delete: if false;
+    }
+
+    // PAYMENTS
+    function isValidPayment(data) {
+      return data.keys().hasAll(['user_id', 'plan', 'amount', 'status', 'created_at']) &&
+             data.user_id is string && data.user_id == request.auth.uid &&
+             data.plan is string && data.plan.size() <= 50 &&
+             data.amount is number &&
+             data.status is string && data.status.size() <= 50 &&
+             data.created_at is number &&
+             (!('currency' in data) || (data.currency is string && data.currency.size() <= 10)) &&
+             (!('payment_provider' in data) || (data.payment_provider is string && data.payment_provider.size() <= 50)) &&
+             (!('razorpay_order_id' in data) || (data.razorpay_order_id is string && data.razorpay_order_id.size() <= 100)) &&
+             (!('razorpay_payment_id' in data) || (data.razorpay_payment_id is string && data.razorpay_payment_id.size() <= 100)) &&
+             (!('razorpay_signature' in data) || (data.razorpay_signature is string && data.razorpay_signature.size() <= 200)) &&
+             (!('updated_at' in data) || data.updated_at is number);
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isSignedIn() && existing().user_id == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(paymentId) && isValidPayment(incoming());
+      allow update: if isSignedIn() && existing().user_id == request.auth.uid && isValidPayment(incoming()) && incoming().user_id == existing().user_id;
+      allow delete: if false; // Financial records should rarely be deleted by user
+    }
+
+  }
+}
