@@ -1,19 +1,23 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAnalytics } from 'firebase/analytics';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getFirebaseClientConfig } from './firebaseConfig';
+import { getFirebaseClientConfig, hasFirebaseConfig } from './firebaseConfig';
 
-const firebaseConfig = getFirebaseClientConfig();
+let app: FirebaseApp | null = null;
 
-const app = initializeApp(firebaseConfig);
+if (hasFirebaseConfig()) {
+  const firebaseConfig = getFirebaseClientConfig();
+  app = initializeApp(firebaseConfig);
+}
 
-// Use the default Firestore database.
-export const db = getFirestore(app);
-export const auth = getAuth(app);
+// These exports must exist for imports to work, but we guard usage.
+export const db = app ? getFirestore(app) : (null as unknown as ReturnType<typeof getFirestore>);
+export const auth = app ? getAuth(app) : (null as unknown as ReturnType<typeof getAuth>);
 
 // Firebase Analytics requires a browser environment.
 export const analytics =
-  typeof window !== 'undefined' ? getAnalytics(app) : (null as unknown as ReturnType<typeof getAnalytics>);
-
+  app && typeof window !== 'undefined'
+    ? getAnalytics(app)
+    : (null as unknown as ReturnType<typeof getAnalytics>);
 
