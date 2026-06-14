@@ -25,6 +25,12 @@ export default function Login() {
       await ensureUserProfile(credential.user);
       navigate("/dashboard/generator");
     } catch (err: any) {
+      // If this email was created via Google (or another provider), password login will fail.
+      if (err?.code === "auth/account-exists-with-different-credential") {
+        setError("This email was created using Google. Please sign in with Google.");
+        return;
+      }
+
       setError(err.message || "Unable to sign in.");
     } finally {
       setLoading(false);

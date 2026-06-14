@@ -49,6 +49,12 @@ export default function Signup() {
       await ensureUserProfile(credential.user, fullName);
       navigate("/dashboard/generator");
     } catch (err: any) {
+      // Duplicate email (user already exists)
+      if (err?.code === "auth/email-already-in-use") {
+        setError("This email is already registered. Please log in instead.");
+        return;
+      }
+
       setError(err.message || "Unable to create account.");
     } finally {
       setLoading(false);
