@@ -25,6 +25,10 @@ export async function downloadGeneratedWebsiteZip(
   saveAs(blob, fileName.endsWith(".zip") ? fileName : `${safeFileName(fileName)}.zip`);
 }
 
+// Backwards compatibility
+export const downloadFilesAsZip = downloadGeneratedWebsiteZip;
+
+
 export function buildPreviewDocument(files: GeneratedFile[]) {
   const html = files.find((file) => file.name.toLowerCase().endsWith(".html"))?.content ?? "";
   const css = files.find((file) => file.name.toLowerCase().endsWith(".css"))?.content ?? "";
