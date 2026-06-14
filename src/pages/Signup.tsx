@@ -1,156 +1,194 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Sparkles } from "lucide-react";
-import { auth, db } from "../lib/firebase";
-import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { ArrowRight, Mail } from "lucide-react";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile } from "firebase/auth";
+import { auth } from "../lib/firebase";
+import { ensureUserProfile } from "../lib/firestore";
 import { PasswordStrengthMeter } from "../components/PasswordStrengthMeter";
+import { webrionConfig } from "../config/webrion";
+
+const passwordChecks = (password: string) => [
+  { label: "Minimum 8 characters", valid: password.length >= 8 },
+  { label: "One uppercase letter", valid: /[A-Z]/.test(password) },
+  { label: "One lowercase letter", valid: /[a-z]/.test(password) },
+  { label: "One number", valid: /[0-9]/.test(password) },
+  { label: "One special character", valid: /[^A-Za-z0-9]/.test(password) }
+];
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const reqs = [
-    { valid: password.length >= 8 },
-    { valid: /[A-Z]/.test(password) },
-    { valid: /[a-z]/.test(password) },
-    { valid: /[0-9]/.test(password) },
-    { valid: /[^A-Za-z0-9]/.test(password) },
-  ];
-  const isPasswordValid = reqs.every((r) => r.valid);
+  const checks = passwordChecks(password);
+  const isPasswordValid = checks.every((check) => check.valid);
+  const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isPasswordValid) return;
+  const handleSignup = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+
+    if (!isPasswordValid) {
+      setError("Password does not meet the security rules.");
+      return;
+    }
+
+    if (!passwordsMatch) {
+      setError("Password and confirm password must match.");
+      return;
+    }
 
     setLoading(true);
-    setError(null);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      await updateProfile(user, { displayName: fullName });
-      
-      // Save profile to Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        fullName,
-        email: user.email,
-        photoURL: null,
-        plan: "free",
-        createdAt: Date.now(),
-        theme: "Dark Green",
-        fontPreference: "Inter"
-      });
-
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(credential.user, { displayName: fullName });
+      await ensureUserProfile(credential.user, fullName);
       navigate("/dashboard/generator");
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Unable to create account.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleSignup = async () => {
+    setLoading(true);
+    setError(null);
+
     try {
       const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-      
-      // Also potentially setup profile in Firestore if it's the first time
-      await setDoc(doc(db, "users", userCredential.user.uid), {
-        uid: userCredential.user.uid,
-        fullName: userCredential.user.displayName,
-        email: userCredential.user.email,
-        photoURL: userCredential.user.photoURL,
-        plan: "free",
-        createdAt: Date.now(),
-        theme: "Dark Green",
-        fontPreference: "Inter"
-      }, { merge: true });
-
+      const credential = await signInWithPopup(auth, provider);
+      await ensureUserProfile(credential.user);
       navigate("/dashboard/generator");
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Unable to continue with Google.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-md mx-auto px-4 py-20 flex flex-col items-center">
-      <div className="w-12 h-12 rounded-xl bg-brand-500 flex items-center justify-center mb-8">
-        <span className="text-white font-bold text-2xl leading-none">W</span>
-      </div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Create your account</h1>
-      <p className="text-gray-600 text-sm mb-8">Start generating websites with Webrion AI.</p>
-
-      {error && <div className="w-full bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-100">{error}</div>}
-
-      <form onSubmit={handleSignup} className="w-full flex flex-col gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Full Name</label>
-          <input 
-            type="text" 
-            required 
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:border-brand-500 outline-none transition-colors shadow-sm" 
-            placeholder="John Doe" 
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Email</label>
-          <input 
-            type="email" 
-            required 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:border-brand-500 outline-none transition-colors shadow-sm" 
-            placeholder="user@example.com" 
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Password</label>
-          <input 
-            type="password" 
-            required 
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:border-brand-500 outline-none transition-colors shadow-sm" 
-            placeholder="••••••••" 
-          />
+    <div className="mx-auto grid min-h-[calc(100vh-180px)] w-full max-w-6xl items-center gap-10 px-4 py-12 lg:grid-cols-[0.9fr_1fr]">
+      <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 sm:p-8">
+        <div className="mb-8 flex items-center gap-3">
+          <img src={webrionConfig.logoPath} alt="Webrion logo" className="h-11 w-11 rounded-xl" />
+          <div>
+            <h2 className="text-2xl font-bold text-slate-950">Create your account</h2>
+            <p className="text-sm text-slate-500">Start generating websites with Webrion AI.</p>
+          </div>
         </div>
 
-        <PasswordStrengthMeter password={password} />
-        
-        <button 
-          type="submit" 
-          disabled={!isPasswordValid || loading}
-          className="w-full py-3 bg-brand-500 hover:bg-brand-600 disabled:bg-gray-200 disabled:text-gray-500 text-white rounded-lg font-medium transition-colors mt-4 relative shadow-sm"
+        {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+        <form onSubmit={handleSignup} className="space-y-4">
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Full name</span>
+            <input
+              type="text"
+              required
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+              placeholder="Aditya Chaurasiya"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Email</span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+              placeholder="you@example.com"
+            />
+          </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold text-slate-700">Password</span>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+                placeholder="Strong password"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold text-slate-700">Confirm password</span>
+              <input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+                placeholder="Repeat password"
+              />
+            </label>
+          </div>
+
+          <PasswordStrengthMeter password={password} />
+
+          <div className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+            {checks.map((check) => (
+              <div key={check.label} className={check.valid ? "text-emerald-700" : "text-slate-500"}>
+                {check.valid ? "OK" : "--"} {check.label}
+              </div>
+            ))}
+            <div className={passwordsMatch ? "text-emerald-700" : "text-slate-500"}>
+              {passwordsMatch ? "OK" : "--"} Passwords match
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={!isPasswordValid || !passwordsMatch || loading}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Creating account..." : "Create account"}
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </form>
+
+        <div className="my-6 flex items-center gap-4">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">or</span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignup}
+          disabled={loading}
+          className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
         >
-          {loading ? "Creating..." : "Create Account"}
+          <Mail className="h-4 w-4 text-emerald-600" />
+          Continue with Google
         </button>
-      </form>
 
-      <div className="w-full flex items-center gap-4 my-6">
-        <div className="flex-1 border-t border-gray-200"></div>
-        <span className="text-gray-400 text-sm font-medium">OR</span>
-        <div className="flex-1 border-t border-gray-200"></div>
-      </div>
+        <p className="mt-8 text-center text-sm text-slate-500">
+          Already have an account?{" "}
+          <Link to="/login" className="font-semibold text-emerald-700 hover:text-emerald-600">
+            Log in
+          </Link>
+        </p>
+      </section>
 
-      <button 
-        onClick={handleGoogleSignup}
-        className="w-full py-3 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg font-medium transition-colors flex items-center justify-center gap-3 relative shadow-sm"
-      >
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5 absolute left-4" alt="Google" />
-        Continue with Google
-      </button>
-
-      <div className="mt-8 text-sm text-gray-600">
-        Already have an account? <Link to="/login" className="text-brand-600 hover:text-brand-700 font-medium">Log in</Link>
-      </div>
+      <section className="hidden rounded-[2rem] border border-emerald-400/20 bg-slate-950 p-8 text-white shadow-2xl shadow-emerald-950/30 lg:block">
+        <img src={webrionConfig.logoPath} alt="Webrion logo" className="mb-8 h-16 w-16 rounded-2xl" />
+        <p className="mb-4 text-sm font-semibold uppercase tracking-[0.35em] text-emerald-300">Premium builder</p>
+        <h1 className="mb-5 text-5xl font-bold leading-tight">Generate client-ready websites in one workspace.</h1>
+        <p className="max-w-xl text-base leading-7 text-slate-300">
+          Built for local businesses, agencies, and creators who need code, live previews, saved history, and ZIP exports.
+        </p>
+      </section>
     </div>
   );
 }

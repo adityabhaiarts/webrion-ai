@@ -1,316 +1,351 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, Download, Copy, Play, Loader2, Code, Terminal, Check } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc, where } from "firebase/firestore";
+import { Download, Eraser, Loader2, Send, Sparkles, Terminal } from "lucide-react";
 import { useLocation } from "react-router-dom";
-import { cn } from "../../lib/utils";
+import CodeViewer from "../../components/CodeViewer";
+import PromptSuggestions from "../../components/PromptSuggestions";
+import Toast from "../../components/Toast";
+import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/auth";
-import { auth, db } from "../../lib/firebase";
-import { collection, addDoc } from "firebase/firestore";
+import type { GeneratedFile, GeneratedProject, GenerationOptions } from "../../types";
+import { defaultGenerationOptions, optionsToPromptSuffix } from "../../utils/prompts";
+import { downloadFilesAsZip } from "../../utils/zip";
+import { webrionConfig } from "../../config/webrion";
 
-interface Message {
+type ChatMessage = {
+  id?: string;
   role: "user" | "assistant";
   content: string;
-  files?: { name: string; content: string }[];
-  deployment?: string;
+  createdAt: number;
+  project?: GeneratedProject;
+};
+
+function titleFromPrompt(prompt: string) {
+  return prompt.trim().replace(/\s+/g, " ").slice(0, 64) || "Untitled Website";
+}
+
+function normalizeProject(raw: any, prompt: string): GeneratedProject {
+  const files = (raw.files || raw.generated_files || []) as GeneratedFile[];
+  const suggestionsRaw = raw.suggestions || raw.improvement_suggestions || [];
+  const suggestions = Array.isArray(suggestionsRaw)
+    ? suggestionsRaw.map(String)
+    : String(suggestionsRaw || "").split(/\n|,/).map((item) => item.trim()).filter(Boolean);
+
+  return {
+    projectName: raw.projectName || raw.project_name || titleFromPrompt(prompt),
+    description: raw.description || `Generated from prompt: ${titleFromPrompt(prompt)}`,
+    websiteType: raw.websiteType || raw.website_type || "AI Generated Website",
+    files,
+    deploymentSteps: raw.deploymentSteps || raw.deployment_steps || raw.deployment || "",
+    suggestions,
+  };
+}
+
+function parseAIResult(result: string, prompt: string) {
+  let cleaned = result.trim();
+  if (cleaned.startsWith("```json")) cleaned = cleaned.slice(7);
+  if (cleaned.startsWith("```")) cleaned = cleaned.slice(3);
+  if (cleaned.endsWith("```")) cleaned = cleaned.slice(0, -3);
+  return normalizeProject(JSON.parse(cleaned), prompt);
 }
 
 export default function DashboardGenerator() {
   const { user } = useAuth();
   const location = useLocation();
-  const [messages, setMessages] = useState<Message[]>([
+  const [input, setInput] = useState("");
+  const [options, setOptions] = useState<GenerationOptions>(defaultGenerationOptions);
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: "Welcome to Webrion AI! Describe the website you want to create, or try one of the templates below."
-    }
+      content: "What do you want to create today? Generate full websites, code, landing pages, and deployment guides with Webrion AI.",
+      createdAt: Date.now(),
+    },
   ]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [mode, setMode] = useState<"chat" | "generate">("generate");
   const [chatId, setChatId] = useState<string | null>(null);
-  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const lastProject = useMemo(() => {
+    return [...messages].reverse().find((message) => message.project)?.project || null;
+  }, [messages]);
 
   useEffect(() => {
     if (location.state?.initialPrompt) {
       setInput(location.state.initialPrompt);
-      setMode("generate");
     }
-  }, [location.state]);
+  }, [location.state?.initialPrompt]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (location.state?.newChat) {
+      startNewChat();
     }
-  }, [messages]);
+  }, [location.state?.newChat]);
 
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedIndex(id);
-    setTimeout(() => setCopiedIndex(null), 2000);
+  useEffect(() => {
+    async function loadChat() {
+      const requestedChatId = location.state?.chatId;
+      if (!user || !requestedChatId) return;
+
+      setIsLoading(true);
+      try {
+        const q = query(
+          collection(db, "chats", requestedChatId, "messages"),
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "asc"),
+        );
+        const snapshot = await getDocs(q);
+        const loaded = snapshot.docs.map((messageDoc) => ({
+          id: messageDoc.id,
+          ...(messageDoc.data() as ChatMessage),
+        }));
+        setChatId(requestedChatId);
+        setMessages(loaded.length ? loaded : messages);
+      } catch (error) {
+        console.error(error);
+        setToast("Could not load that chat.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadChat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state?.chatId, user]);
+
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 2600);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const startNewChat = () => {
+    setChatId(null);
+    setInput("");
+    setMessages([
+      {
+        role: "assistant",
+        content: "New chat started. Describe the website you want to generate.",
+        createdAt: Date.now(),
+      },
+    ]);
+  };
+
+  const toggleOption = (key: keyof GenerationOptions) => {
+    setOptions((current) => ({ ...current, [key]: !current[key] }));
+  };
+
+  const ensureChat = async (prompt: string) => {
+    if (!user) throw new Error("Login required.");
+    if (chatId) return chatId;
+
+    const ref = await addDoc(collection(db, "chats"), {
+      userId: user.uid,
+      title: titleFromPrompt(prompt),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    setChatId(ref.id);
+    return ref.id;
+  };
+
+  const saveMessage = async (currentChatId: string, message: ChatMessage) => {
+    if (!user) return;
+    await addDoc(collection(db, "chats", currentChatId, "messages"), {
+      userId: user.uid,
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt,
+      ...(message.project ? { project: message.project } : {}),
+    });
+    await updateDoc(doc(db, "chats", currentChatId), { updatedAt: Date.now() });
+  };
+
+  const saveGeneratedWebsite = async (currentChatId: string, prompt: string, project: GeneratedProject) => {
+    if (!user) return;
+    await addDoc(collection(db, "generatedWebsites"), {
+      userId: user.uid,
+      chatId: currentChatId,
+      title: project.projectName,
+      websiteType: project.websiteType,
+      prompt,
+      files: project.files,
+      deploymentSteps: project.deploymentSteps,
+      suggestions: project.suggestions,
+      createdAt: Date.now(),
+    });
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     if (!input.trim() || isLoading || !user) return;
 
-    const userPrompt = input.trim();
+    const prompt = input.trim();
+    const userMessage: ChatMessage = { role: "user", content: prompt, createdAt: Date.now() };
+    setMessages((current) => [...current, userMessage]);
     setInput("");
-    setMessages(prev => [...prev, { role: "user", content: userPrompt }]);
     setIsLoading(true);
 
     try {
-      let currentChatId = chatId;
-      if (!currentChatId) {
-        const chatRef = await addDoc(collection(db, "chats"), {
-          user_id: user.uid,
-          title: userPrompt.substring(0, 50) + "...",
-          created_at: Date.now(),
-          updated_at: Date.now()
-        });
-        currentChatId = chatRef.id;
-        setChatId(currentChatId);
-      }
+      const currentChatId = await ensureChat(prompt);
+      await saveMessage(currentChatId, userMessage);
 
-      await addDoc(collection(db, `chats/${currentChatId}/messages`), {
-        user_id: user.uid,
-        role: "user",
-        content: userPrompt,
-        created_at: Date.now()
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `${prompt}${optionsToPromptSuffix(options)}\n\nBrand context: ${webrionConfig.liveSiteSummary}`,
+          options,
+        }),
       });
 
-      if (mode === "generate") {
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: userPrompt })
-        });
-
-        if (!res.ok) throw new Error("Failed to generate code.");
-
-        const data = await res.json();
-        
-        let parsedOut;
-        try {
-          let text = data.result.trim();
-          if (text.startsWith("```json")) {
-             text = text.substring(7);
-             if (text.endsWith("```")) text = text.slice(0, -3);
-          }
-          parsedOut = JSON.parse(text);
-        } catch(err) {
-          throw new Error("Invalid output format returned by AI.");
-        }
-
-        await addDoc(collection(db, `chats/${currentChatId}/messages`), {
-          user_id: user.uid,
-          role: "assistant",
-          content: "Generated website successfully.",
-          created_at: Date.now()
-        });
-
-        await addDoc(collection(db, "generated_websites"), {
-          user_id: user.uid,
-          chat_id: currentChatId,
-          title: userPrompt.substring(0, 50),
-          prompt: userPrompt,
-          generated_files: parsedOut.files || [],
-          deployment_steps: parsedOut.deployment_steps || "",
-          suggestions: parsedOut.suggestions || "",
-          created_at: Date.now()
-        });
-
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: "I've generated the website based on your requirements. Here are the files:",
-          files: parsedOut.files || [],
-          deployment: parsedOut.deployment_steps
-        }]);
-      } else {
-        // Chat mode
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: userPrompt, history: messages.slice(-5) })
-        });
-
-        if (!res.ok) throw new Error("Failed to chat.");
-
-        const data = await res.json();
-        const reply = data.result;
-
-        await addDoc(collection(db, `chats/${currentChatId}/messages`), {
-          user_id: user.uid,
-          role: "assistant",
-          content: reply,
-          created_at: Date.now()
-        });
-
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: reply
-        }]);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to generate website code.");
       }
-    } catch(err: any) {
-      setMessages(prev => [...prev, { role: "assistant", content: `Error: ${err.message}` }]);
+
+      const data = await response.json();
+      const project = parseAIResult(data.result, prompt);
+      if (!project.files.length) throw new Error("AI returned no files.");
+
+      const assistantMessage: ChatMessage = {
+        role: "assistant",
+        content: `Generated ${project.files.length} files for ${project.projectName}. You can preview, copy, or download the ZIP below.`,
+        project,
+        createdAt: Date.now(),
+      };
+
+      setMessages((current) => [...current, assistantMessage]);
+      await saveMessage(currentChatId, assistantMessage);
+      await saveGeneratedWebsite(currentChatId, prompt, project);
+      showToast("Website generated and saved.");
+    } catch (err: any) {
+      const failure: ChatMessage = {
+        role: "assistant",
+        content: `Generation failed: ${err.message || "Unknown error"}`,
+        createdAt: Date.now(),
+      };
+      setMessages((current) => [...current, failure]);
+      showToast("Generation failed. Check API keys and server logs.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const chips = [
-    "Hospital website with dark theme", 
-    "Modern coaching website", 
-    "Hotel booking landing page", 
-    "Restaurant menu UI in HTML/CSS", 
-    "PHP contact logic", 
-    "Minimal portfolio"
-  ];
+  const handleClear = () => {
+    setInput("");
+    showToast("Prompt cleared.");
+  };
+
+  const handleDownloadLast = async () => {
+    if (!lastProject) {
+      showToast("No generated ZIP available yet.");
+      return;
+    }
+    await downloadFilesAsZip(lastProject.files);
+    showToast("ZIP download started.");
+  };
 
   return (
-    <div className="flex flex-col h-full w-full relative bg-gray-50">
-      {/* Header */}
-      <div className="h-14 border-b border-gray-200 bg-white/90 backdrop-blur-xl flex items-center px-4 shrink-0 sm:px-6">
-        <h1 className="text-sm font-medium text-gray-700 flex items-center gap-2">
-          <Terminal className="w-4 h-4 text-brand-600" />
-          AI Generator Sandbox
-        </h1>
-      </div>
+    <div className="min-h-full p-4 text-white md:p-8">
+      <Toast message={toast} />
+      <div className="mx-auto flex max-w-7xl flex-col gap-6">
+        <header className="flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-xl shadow-black/20 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-sm font-semibold text-emerald-200">
+              <Terminal className="h-4 w-4" />
+              AI Generator
+            </div>
+            <h1 className="text-3xl font-black tracking-tight md:text-5xl">What do you want to create today?</h1>
+            <p className="mt-3 max-w-3xl text-slate-300">
+              Generate full websites, code, landing pages, and deployment guides with Webrion AI.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={startNewChat} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10">
+              New Chat
+            </button>
+            <button type="button" onClick={handleDownloadLast} className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-emerald-300">
+              <Download className="h-4 w-4" />
+              Download Last ZIP
+            </button>
+          </div>
+        </header>
 
-      {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar" ref={scrollRef}>
-        <div className="max-w-4xl mx-auto flex flex-col gap-6 w-full">
-          {messages.map((msg, idx) => (
-            <div key={idx} className={cn("flex gap-3 sm:gap-4 p-4 rounded-3xl", msg.role === 'assistant' ? 'bg-white border border-gray-100 shadow-sm' : '')}>
-              <div className={cn("w-8 h-8 sm:w-10 sm:h-10 rounded-full shrink-0 flex items-center justify-center", 
-                msg.role === 'assistant' ? 'bg-brand-500' : 'bg-gray-800')}>
-                {msg.role === 'assistant' ? <span className="text-white font-bold text-lg leading-none">W</span> : <UserAvatar />}
-              </div>
-              <div className="flex flex-col gap-4 w-full overflow-hidden">
-                <div className={cn("text-[15px] leading-relaxed mt-1 whitespace-pre-wrap break-words", msg.role === 'user' ? 'text-gray-900 font-medium' : 'text-gray-700')}>{msg.content}</div>
-                
-                {/* Generated Files UI */}
-                {msg.files && msg.files.length > 0 && (
-                   <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mt-3 shadow-xl">
-                      <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 bg-gray-950">
-                         <Code className="w-4 h-4 text-brand-400" />
-                         <span className="text-xs font-semibold tracking-wider uppercase text-gray-300">Generated Files</span>
-                      </div>
-                      <div className="p-4 grid grid-cols-1 gap-6">
-                         {msg.files.map((file, i) => {
-                            const fileId = `file-${idx}-${i}`;
-                            return (
-                              <div key={i} className="flex flex-col gap-2 relative group">
-                                 <div className="flex items-center justify-between">
-                                    <div className="text-xs font-mono text-brand-300 px-2 py-1 rounded bg-brand-900/30 border border-brand-800 inline-block">{file.name}</div>
-                                    <button 
-                                      onClick={() => handleCopy(file.content, fileId)}
-                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors text-xs font-medium"
-                                    >
-                                      {copiedIndex === fileId ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                                      {copiedIndex === fileId ? 'Copied' : 'Copy code'}
-                                    </button>
-                                 </div>
-                                 <div className="relative">
-                                    <pre className="p-5 rounded-xl bg-black text-sm font-mono text-gray-300 overflow-x-auto border border-gray-800 leading-relaxed">
-                                      {file.content}
-                                    </pre>
-                                 </div>
-                              </div>
-                            )
-                         })}
-                      </div>
-                   </div>
-                )}
-              </div>
+        <PromptSuggestions onSelect={setInput} />
+
+        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 shadow-xl shadow-black/20 md:p-6">
+          <form onSubmit={handleSubmit}>
+            <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+              {[
+                ["html", "Generate HTML"],
+                ["css", "Generate CSS"],
+                ["javascript", "Generate JavaScript"],
+                ["php", "Generate PHP contact form"],
+                ["readme", "Include README"],
+                ["deploymentGuide", "Include deployment guide"],
+              ].map(([key, label]) => (
+                <label key={key} className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={options[key as keyof GenerationOptions]}
+                    onChange={() => toggleOption(key as keyof GenerationOptions)}
+                    className="h-4 w-4 accent-emerald-400"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              disabled={isLoading}
+              rows={7}
+              placeholder="Describe the website you want to generate..."
+              className="w-full resize-none rounded-3xl border border-white/10 bg-slate-950/80 p-5 text-base leading-7 text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-400/60 focus:ring-4 focus:ring-emerald-400/10"
+            />
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="submit"
+                disabled={!input.trim() || isLoading}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 py-4 font-black text-slate-950 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
+              >
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                Generate Website
+              </button>
+              <button type="button" onClick={handleClear} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-5 py-4 font-bold text-slate-200 hover:bg-white/10">
+                <Eraser className="h-5 w-5" />
+                Clear
+              </button>
+              <button type="button" onClick={handleDownloadLast} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-5 py-4 font-bold text-slate-200 hover:bg-white/10">
+                <Download className="h-5 w-5" />
+                Download Last ZIP
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section className="space-y-4">
+          {messages.map((message, index) => (
+            <div key={`${message.createdAt}-${index}`} className={message.role === "assistant" && message.project ? "" : "rounded-3xl border border-white/10 bg-white/[0.04] p-5"}>
+              {message.role === "assistant" && message.project ? (
+                <CodeViewer project={message.project} onDownload={() => showToast("ZIP download started.")} />
+              ) : (
+                <div className="flex gap-4">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black ${message.role === "assistant" ? "bg-emerald-400 text-slate-950" : "bg-white text-slate-950"}`}>
+                    {message.role === "assistant" ? "W" : "U"}
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">{message.content}</p>
+                </div>
+              )}
             </div>
           ))}
           {isLoading && (
-            <div className="flex gap-4 p-4 rounded-3xl bg-white border border-gray-100 shadow-sm animate-pulse">
-              <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center bg-brand-500">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex items-center gap-3 text-[15px] text-brand-600 font-medium">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Crafting your website architecture...
-              </div>
+            <div className="flex items-center gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5 text-emerald-100">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Crafting your website files...
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Input Area */}
-      <div className="p-4 sm:p-6 shrink-0 bg-white/90 backdrop-blur-2xl border-t border-gray-200 pb-safe z-10 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
-        <div className="max-w-4xl mx-auto">
-          {messages.length === 1 && (
-            <div className="flex flex-wrap gap-2 mb-6 justify-center">
-              {chips.map(chip => (
-                <button
-                  key={chip}
-                  onClick={() => setInput(chip)}
-                  className="px-4 py-2 rounded-full text-xs sm:text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:text-brand-600 hover:border-brand-200 hover:bg-brand-50 transition-all shadow-sm"
-                >
-                  {chip}
-                </button>
-              ))}
-            </div>
-          )}
-          
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 mb-3 px-2 sm:px-4">
-             <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-gray-600 cursor-pointer hover:text-gray-900 transition-colors">
-               <input 
-                 type="radio" 
-                 name="mode" 
-                 value="chat" 
-                 checked={mode === "chat"} 
-                 onChange={() => setMode("chat")}
-                 className="accent-brand-500 w-4 h-4"
-               />
-               General Q&A
-             </label>
-             <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-gray-600 cursor-pointer hover:text-gray-900 transition-colors">
-               <input 
-                 type="radio" 
-                 name="mode" 
-                 value="generate" 
-                 checked={mode === "generate"} 
-                 onChange={() => setMode("generate")}
-                 className="accent-brand-500 w-4 h-4"
-               />
-               Generate Code
-             </label>
-          </div>
-
-          <form onSubmit={handleSubmit} className="relative flex items-center shadow-lg rounded-2xl group border border-gray-200 focus-within:border-brand-300 focus-within:ring-2 focus-within:ring-brand-100 bg-white transition-all">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={mode === "generate" ? "Describe the website you want to build..." : "Ask a technical question..."}
-              disabled={isLoading}
-              className="w-full bg-transparent rounded-2xl px-5 sm:px-6 py-4 sm:py-5 pr-14 sm:pr-16 text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              className="absolute right-2 sm:right-3 p-2.5 sm:p-3 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:bg-gray-100 text-white disabled:text-gray-400 transition-colors disabled:shadow-none"
-            >
-              <Send className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-          </form>
-          <div className="text-center mt-3 text-[11px] text-gray-500 font-medium">
-            AI can make mistakes. Please verify important code before deploying to production.
-          </div>
-        </div>
+        </section>
       </div>
     </div>
   );
 }
-
-function UserAvatar() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 sm:w-5 sm:h-5 text-white">
-      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-      <circle cx="12" cy="7" r="4"></circle>
-    </svg>
-  );
-}
-

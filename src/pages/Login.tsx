@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Sparkles, Mail } from "lucide-react";
+import { ArrowRight, Mail } from "lucide-react";
+import { GoogleAuthProvider, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth } from "../lib/firebase";
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from "firebase/auth";
+import { ensureUserProfile } from "../lib/firestore";
+import { webrionConfig } from "../config/webrion";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -12,111 +14,153 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
     setLoading(true);
     setError(null);
+    setResetMessage(null);
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      await ensureUserProfile(credential.user);
       navigate("/dashboard/generator");
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Unable to sign in.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError(null);
+
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const credential = await signInWithPopup(auth, provider);
+      await ensureUserProfile(credential.user);
       navigate("/dashboard/generator");
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Unable to sign in with Google.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleForgotPassword = async () => {
     if (!email) {
-      setError("Please enter your email address to reset your password.");
+      setError("Enter your email address first, then click forgot password.");
       return;
     }
+
     setError(null);
     setResetMessage(null);
+
     try {
       await sendPasswordResetEmail(auth, email);
-      setResetMessage("Password reset email sent! Check your inbox.");
+      setResetMessage("Password reset email sent. Check your inbox.");
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Unable to send password reset email.");
     }
   };
 
   return (
-    <div className="w-full max-w-md mx-auto px-4 py-20 flex flex-col items-center">
-      <div className="w-12 h-12 rounded-xl bg-brand-500 flex items-center justify-center mb-8">
-        <span className="text-white font-bold text-2xl leading-none">W</span>
-      </div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back to Webrion AI</h1>
-      <p className="text-gray-600 text-sm mb-8">Enter your credentials to access your dashboard.</p>
-
-      {error && <div className="w-full bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-100">{error}</div>}
-      {resetMessage && <div className="w-full bg-brand-50 text-brand-700 p-3 rounded-lg text-sm mb-4 border border-brand-100">{resetMessage}</div>}
-
-      <form onSubmit={handleLogin} className="w-full flex flex-col gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Email</label>
-          <input 
-            type="email" 
-            required 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:border-brand-500 outline-none transition-colors shadow-sm" 
-            placeholder="user@example.com" 
-          />
+    <div className="mx-auto grid min-h-[calc(100vh-180px)] w-full max-w-6xl items-center gap-10 px-4 py-12 lg:grid-cols-[1fr_0.9fr]">
+      <section className="hidden rounded-[2rem] border border-emerald-400/20 bg-slate-950 p-8 text-white shadow-2xl shadow-emerald-950/30 lg:block">
+        <img src={webrionConfig.logoPath} alt="Webrion logo" className="mb-8 h-16 w-16 rounded-2xl" />
+        <p className="mb-4 text-sm font-semibold uppercase tracking-[0.35em] text-emerald-300">Webrion AI</p>
+        <h1 className="mb-5 text-5xl font-bold leading-tight">Continue building production websites with AI.</h1>
+        <p className="max-w-xl text-base leading-7 text-slate-300">
+          Sign in to generate complete website code, preview output, download ZIP files, and save your project history.
+        </p>
+        <div className="mt-10 grid grid-cols-3 gap-3 text-sm text-slate-300">
+          {["Code tabs", "Live preview", "ZIP export"].map((item) => (
+            <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              {item}
+            </div>
+          ))}
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Password</label>
-          <input 
-            type="password" 
-            required 
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:border-brand-500 outline-none transition-colors shadow-sm" 
-            placeholder="••••••••" 
-          />
-          <div className="flex justify-end mt-1">
-            <button type="button" onClick={handleForgotPassword} className="text-xs text-brand-600 hover:text-brand-700 font-medium">
-              Forgot password?
-            </button>
+      </section>
+
+      <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 sm:p-8">
+        <div className="mb-8 flex items-center gap-3">
+          <img src={webrionConfig.logoPath} alt="Webrion logo" className="h-11 w-11 rounded-xl" />
+          <div>
+            <h2 className="text-2xl font-bold text-slate-950">Welcome back</h2>
+            <p className="text-sm text-slate-500">Access your Webrion AI dashboard.</p>
           </div>
         </div>
-        
-        <button 
-          type="submit" 
+
+        {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        {resetMessage && (
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+            {resetMessage}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Email</span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+              placeholder="you@example.com"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Password</span>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+              placeholder="Enter your password"
+            />
+          </label>
+
+          <button type="button" onClick={handleForgotPassword} className="text-sm font-semibold text-emerald-700 hover:text-emerald-600">
+            Forgot password?
+          </button>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Signing in..." : "Sign in"}
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </form>
+
+        <div className="my-6 flex items-center gap-4">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">or</span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-colors mt-4 disabled:opacity-50 shadow-sm"
+          className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
         >
-          {loading ? "Signing In..." : "Sign In"}
+          <Mail className="h-4 w-4 text-emerald-600" />
+          Continue with Google
         </button>
-      </form>
 
-      <div className="w-full flex items-center gap-4 my-6">
-        <div className="flex-1 border-t border-gray-200"></div>
-        <span className="text-gray-400 text-sm font-medium">OR</span>
-        <div className="flex-1 border-t border-gray-200"></div>
-      </div>
-
-      <button 
-        onClick={handleGoogleLogin}
-        className="w-full py-3 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg font-medium transition-colors flex items-center justify-center gap-3 relative shadow-sm"
-      >
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5 absolute left-4" alt="Google" />
-        Sign In with Google
-      </button>
-
-      <div className="mt-8 text-sm text-gray-600">
-        Don't have an account? <Link to="/signup" className="text-brand-600 hover:text-brand-700 font-medium">Sign up</Link>
-      </div>
+        <p className="mt-8 text-center text-sm text-slate-500">
+          New to Webrion AI?{" "}
+          <Link to="/signup" className="font-semibold text-emerald-700 hover:text-emerald-600">
+            Create an account
+          </Link>
+        </p>
+      </section>
     </div>
   );
 }
+

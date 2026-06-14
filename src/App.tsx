@@ -4,6 +4,7 @@
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import type { ReactNode } from "react";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -19,10 +20,19 @@ import DashboardWebsites from "./pages/dashboard/Websites";
 import DashboardSettings from "./pages/dashboard/Settings";
 
 // Public route that redirects to dashboard if logged in
-const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+const PublicRoute = ({ children }: { children: ReactNode }) => {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <div className="min-h-screen bg-slate-950" />;
   if (user) return <Navigate to="/dashboard/generator" replace />;
+  return <>{children}</>;
+};
+
+const ProtectedRoute = ({ children }: { children: ReactNode }) => {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return <div className="grid min-h-screen place-items-center bg-slate-950 text-white">Loading Webrion AI...</div>;
+  }
+  if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 };
 
@@ -39,7 +49,7 @@ export default function App() {
           </Route>
           
           {/* Dashboard Layer */}
-          <Route path="/dashboard" element={<DashboardLayout />}>
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/dashboard/generator" replace />} />
             <Route path="generator" element={<DashboardGenerator />} />
             <Route path="chats" element={<DashboardChats />} />
@@ -57,4 +67,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-
