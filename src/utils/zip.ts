@@ -25,7 +25,7 @@ export async function downloadGeneratedWebsiteZip(
   saveAs(blob, fileName.endsWith(".zip") ? fileName : `${safeFileName(fileName)}.zip`);
 }
 
-export function buildPreviewSrcDoc(files: GeneratedFile[]) {
+export function buildPreviewDocument(files: GeneratedFile[]) {
   const html = files.find((file) => file.name.toLowerCase().endsWith(".html"))?.content ?? "";
   const css = files.find((file) => file.name.toLowerCase().endsWith(".css"))?.content ?? "";
   const js = files.find((file) => file.name.toLowerCase().endsWith(".js"))?.content ?? "";
@@ -43,6 +43,10 @@ export function buildPreviewSrcDoc(files: GeneratedFile[]) {
 
   return `<!doctype html><html><head>${styleTag}</head><body>${html}${scriptTag}</body></html>`;
 }
+
+// Backwards compatibility
+export const buildPreviewSrcDoc = buildPreviewDocument;
+
 
 export function getLanguageFromFileName(fileName: string) {
   const lower = fileName.toLowerCase();
