@@ -14,7 +14,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
 
-  const handleLogin = async (event: React.FormEvent) => {
+  const handleLogin = async (event: any) => {
     event.preventDefault();
     setLoading(true);
     setError(null);

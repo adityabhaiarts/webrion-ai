@@ -28,7 +28,7 @@ export default function Signup() {
   const isPasswordValid = checks.every((check) => check.valid);
   const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
 
-  const handleSignup = async (event: React.FormEvent) => {
+  const handleSignup = async (event: any) => {
     event.preventDefault();
     setError(null);
 
