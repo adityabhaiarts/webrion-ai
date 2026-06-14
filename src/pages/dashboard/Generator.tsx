@@ -84,7 +84,7 @@ export default function DashboardGenerator() {
   useEffect(() => {
     async function loadChat() {
       const requestedChatId = location.state?.chatId;
-      if (!user || !requestedChatId) return;
+      if (!user || !requestedChatId || !db) return;
 
       setIsLoading(true);
       try {
@@ -134,6 +134,7 @@ export default function DashboardGenerator() {
 
   const ensureChat = async (prompt: string) => {
     if (!user) throw new Error("Login required.");
+    if (!db) throw new Error("Firebase Firestore is not configured.");
     if (chatId) return chatId;
 
     const ref = await addDoc(collection(db, "chats"), {
@@ -147,7 +148,7 @@ export default function DashboardGenerator() {
   };
 
   const saveMessage = async (currentChatId: string, message: ChatMessage) => {
-    if (!user) return;
+    if (!user || !db) return;
     await addDoc(collection(db, "chats", currentChatId, "messages"), {
       userId: user.uid,
       role: message.role,
@@ -159,7 +160,7 @@ export default function DashboardGenerator() {
   };
 
   const saveGeneratedWebsite = async (currentChatId: string, prompt: string, project: GeneratedProject) => {
-    if (!user) return;
+    if (!user || !db) return;
     await addDoc(collection(db, "generatedWebsites"), {
       userId: user.uid,
       chatId: currentChatId,

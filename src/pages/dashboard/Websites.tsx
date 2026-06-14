@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { LayoutPanelLeft, Download, Trash2, Code, ExternalLink } from "lucide-react";
+import { useEffect, useState } from "react";
+import { LayoutPanelLeft, Trash2, Code, Clock } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { db } from "../../lib/firebase";
 import { collection, query, where, getDocs, orderBy, deleteDoc, doc } from "firebase/firestore";
@@ -7,7 +7,8 @@ import { collection, query, where, getDocs, orderBy, deleteDoc, doc } from "fire
 interface Website {
   id: string;
   title: string;
-  created_at: number;
+  websiteType?: string;
+  createdAt: number;
 }
 
 export default function DashboardWebsites() {
@@ -17,15 +18,19 @@ export default function DashboardWebsites() {
 
   useEffect(() => {
     async function loadWebsites() {
-      if (!user) return;
+      if (!user || !db) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const q = query(
-          collection(db, "generated_websites"),
-          where("user_id", "==", user.uid),
-          orderBy("created_at", "desc")
+          collection(db, "generatedWebsites"),
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "desc")
         );
         const snapshot = await getDocs(q);
-        const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Website));
+        const fetched = snapshot.docs.map((websiteDoc) => ({ id: websiteDoc.id, ...websiteDoc.data() } as Website));
         setWebsites(fetched);
       } catch (err) {
         console.error("Failed to load websites", err);
@@ -37,52 +42,50 @@ export default function DashboardWebsites() {
   }, [user]);
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this generated website?")) return;
+    if (!db || !window.confirm("Delete this generated website?")) return;
+
     try {
-      await deleteDoc(doc(db, "generated_websites", id));
-      setWebsites(prev => prev.filter(w => w.id !== id));
-    } catch(err) {
+      await deleteDoc(doc(db, "generatedWebsites", id));
+      setWebsites((current) => current.filter((website) => website.id !== id));
+    } catch (err) {
       console.error(err);
     }
   };
 
   return (
-    <div className="p-4 md:p-8 w-full max-w-6xl mx-auto h-full flex flex-col">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Generated Websites</h1>
-        <p className="text-gray-600 text-sm">Access, download, and manage your previously generated websites.</p>
+    <div className="mx-auto flex h-full w-full max-w-6xl flex-col p-4 text-white md:p-8">
+      <div className="mb-8 rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-xl shadow-black/20">
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-sm font-bold text-emerald-200">
+          <LayoutPanelLeft className="h-4 w-4" /> Generated Websites
+        </div>
+        <h1 className="text-3xl font-black">Your generated website library</h1>
+        <p className="mt-2 text-sm text-slate-300">Access and manage previously generated projects.</p>
       </div>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center text-gray-500">Loading websites...</div>
+        <div className="flex flex-1 items-center justify-center text-slate-400">Loading websites...</div>
       ) : websites.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-gray-500 border border-gray-200 rounded-2xl bg-white border-dashed">
-           <LayoutPanelLeft className="w-12 h-12 mb-4 opacity-30 text-gray-400" />
-           <p>No generated websites round.</p>
+        <div className="flex flex-1 flex-col items-center justify-center rounded-[2rem] border border-dashed border-white/10 bg-white/[0.04] p-8 text-slate-400">
+          <LayoutPanelLeft className="mb-4 h-12 w-12 text-emerald-300/50" />
+          <p>No generated websites found.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {websites.map(website => (
-            <div key={website.id} className="bg-white shadow-sm border border-gray-200 rounded-2xl overflow-hidden flex flex-col group hover:border-brand-300 hover:shadow-md transition-all">
-              <div className="h-40 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden">
-                 <div className="absolute inset-0 opacity-5 bg-gradient-to-br from-brand-500 to-emerald-500" />
-                 <Code className="w-10 h-10 text-brand-600 opacity-30" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {websites.map((website) => (
+            <div key={website.id} className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-xl shadow-black/20 transition hover:-translate-y-1 hover:border-emerald-400/35">
+              <div className="relative grid h-40 place-items-center bg-gradient-to-br from-emerald-500/20 via-slate-950 to-black">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(52,211,153,0.28),transparent_35%)]" />
+                <Code className="relative h-10 w-10 text-emerald-200/70" />
               </div>
-              <div className="p-5 flex flex-col flex-1 border-t border-gray-100">
-                <h3 className="text-gray-900 font-semibold mb-1 line-clamp-1">{website.title || "Untitled Project"}</h3>
-                <p className="text-xs text-gray-500 mb-6">Generated on {new Date(website.created_at).toLocaleDateString()}</p>
-                
-                <div className="flex items-center gap-2 mt-auto">
-                  <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-brand-50 text-brand-700 rounded-lg text-sm font-medium hover:bg-brand-100 transition-colors">
-                    <Download className="w-4 h-4" /> ZIP
-                  </button>
-                  <button className="p-2 text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200">
-                    <ExternalLink className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDelete(website.id)} className="p-2 text-gray-600 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-lg transition-colors border border-gray-200">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+              <div className="p-5">
+                <h3 className="truncate text-lg font-black text-white">{website.title || "Untitled Project"}</h3>
+                <p className="mt-1 text-sm text-slate-400">{website.websiteType || "AI Generated Website"}</p>
+                <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                  <Clock className="h-3 w-3" /> Generated on {new Date(website.createdAt || Date.now()).toLocaleDateString()}
+                </p>
+                <button onClick={() => handleDelete(website.id)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200 hover:bg-red-500/20">
+                  <Trash2 className="h-4 w-4" /> Delete
+                </button>
               </div>
             </div>
           ))}

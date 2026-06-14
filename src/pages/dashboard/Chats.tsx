@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { MessagesSquare, Search, Trash2, ChevronRight, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { MessagesSquare, Trash2, ChevronRight, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../lib/auth";
 import { db } from "../../lib/firebase";
@@ -8,8 +8,8 @@ import { collection, query, where, getDocs, orderBy, deleteDoc, doc } from "fire
 interface Chat {
   id: string;
   title: string;
-  created_at: number;
-  updated_at: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export default function DashboardChats() {
@@ -19,15 +19,19 @@ export default function DashboardChats() {
 
   useEffect(() => {
     async function loadChats() {
-      if (!user) return;
+      if (!user || !db) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const q = query(
           collection(db, "chats"),
-          where("user_id", "==", user.uid),
-          orderBy("updated_at", "desc")
+          where("userId", "==", user.uid),
+          orderBy("updatedAt", "desc")
         );
         const snapshot = await getDocs(q);
-        const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Chat));
+        const fetched = snapshot.docs.map((chatDoc) => ({ id: chatDoc.id, ...chatDoc.data() } as Chat));
         setChats(fetched);
       } catch (err) {
         console.error("Failed to load chats", err);
@@ -39,58 +43,62 @@ export default function DashboardChats() {
   }, [user]);
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this chat?")) return;
+    if (!db || !window.confirm("Delete this chat?")) return;
+
     try {
       await deleteDoc(doc(db, "chats", id));
-      setChats(prev => prev.filter(c => c.id !== id));
-    } catch(err) {
+      setChats((current) => current.filter((chat) => chat.id !== id));
+    } catch (err) {
       console.error(err);
     }
   };
 
   return (
-    <div className="p-4 md:p-8 w-full max-w-6xl mx-auto h-full flex flex-col">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="mx-auto flex h-full w-full max-w-6xl flex-col p-4 text-white md:p-8">
+      <div className="mb-8 flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-xl shadow-black/20 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">My Chats</h1>
-          <p className="text-gray-600 text-sm">View and manage your past AI generation sessions.</p>
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-sm font-bold text-emerald-200">
+            <MessagesSquare className="h-4 w-4" /> My Chats
+          </div>
+          <h1 className="text-3xl font-black">Saved generation chats</h1>
+          <p className="mt-2 text-sm text-slate-300">View and continue your past Webrion AI sessions.</p>
         </div>
-        <Link to="/dashboard/generator" className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm">
+        <Link to="/dashboard/generator" className="rounded-2xl bg-emerald-400 px-4 py-3 text-center text-sm font-black text-slate-950 hover:bg-emerald-300">
           New Chat
         </Link>
       </div>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center text-gray-500">Loading chats...</div>
+        <div className="flex flex-1 items-center justify-center text-slate-400">Loading chats...</div>
       ) : chats.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-gray-500 border border-gray-200 rounded-2xl bg-white border-dashed">
-           <MessagesSquare className="w-12 h-12 mb-4 opacity-30 text-gray-400" />
-           <p>No chats found.</p>
-           <Link to="/dashboard/generator" className="mt-4 text-brand-600 hover:text-brand-700 text-sm font-medium">Start generating</Link>
+        <div className="flex flex-1 flex-col items-center justify-center rounded-[2rem] border border-dashed border-white/10 bg-white/[0.04] p-8 text-slate-400">
+          <MessagesSquare className="mb-4 h-12 w-12 text-emerald-300/50" />
+          <p>No chats found yet.</p>
+          <Link to="/dashboard/generator" className="mt-4 text-sm font-bold text-emerald-300 hover:text-emerald-200">Start generating</Link>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {chats.map(chat => (
-            <div key={chat.id} className="bg-white border border-gray-200 p-4 rounded-2xl flex items-center justify-between group hover:border-gray-300 hover:shadow-sm transition-all">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-brand-600">
-                  <MessagesSquare className="w-5 h-5" />
+          {chats.map((chat) => (
+            <div key={chat.id} className="group flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-lg shadow-black/10 transition hover:border-emerald-400/35">
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-400/15 text-emerald-200">
+                  <MessagesSquare className="h-5 w-5" />
                 </div>
-                <div>
-                  <h3 className="text-gray-900 font-medium mb-1 line-clamp-1 max-w-[200px] md:max-w-md">{chat.title || "Untitled Chat"}</h3>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <Clock className="w-3 h-3" />
-                    {new Date(chat.updated_at).toLocaleDateString()}
+                <div className="min-w-0">
+                  <h3 className="truncate font-bold text-white">{chat.title || "Untitled Chat"}</h3>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+                    <Clock className="h-3 w-3" />
+                    {new Date(chat.updatedAt || chat.createdAt || Date.now()).toLocaleDateString()}
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => handleDelete(chat.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 bg-gray-50 rounded-lg transition-colors">
-                  <Trash2 className="w-4 h-4" />
+              <div className="flex items-center gap-2">
+                <button onClick={() => handleDelete(chat.id)} className="rounded-xl border border-red-400/20 bg-red-500/10 p-2 text-red-200 hover:bg-red-500/20" aria-label="Delete chat">
+                  <Trash2 className="h-4 w-4" />
                 </button>
-                <Link to="/dashboard/generator" state={{ chatId: chat.id }} className="p-2 text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium pr-3">
-                  Open <ChevronRight className="w-4 h-4" />
+                <Link to="/dashboard/generator" state={{ chatId: chat.id }} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-200 hover:bg-white/10">
+                  Open <ChevronRight className="h-4 w-4" />
                 </Link>
               </div>
             </div>

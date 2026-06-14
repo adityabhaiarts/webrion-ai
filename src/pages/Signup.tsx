@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Mail } from "lucide-react";
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile } from "firebase/auth";
 import { auth } from "../lib/firebase";
+import FirebaseSetupNotice from "../components/FirebaseSetupNotice";
 import { ensureUserProfile } from "../lib/firestore";
 import { PasswordStrengthMeter } from "../components/PasswordStrengthMeter";
 import { webrionConfig } from "../config/webrion";
@@ -28,8 +29,12 @@ export default function Signup() {
   const isPasswordValid = checks.every((check) => check.valid);
   const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
 
-  const handleSignup = async (event: any) => {
+  const handleSignup = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!auth) {
+      setError("Firebase is not configured yet. Add Firebase env variables in Vercel and redeploy.");
+      return;
+    }
     setError(null);
 
     if (!isPasswordValid) {
@@ -62,6 +67,10 @@ export default function Signup() {
   };
 
   const handleGoogleSignup = async () => {
+    if (!auth) {
+      setError("Firebase is not configured yet. Add Firebase env variables in Vercel and redeploy.");
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -76,6 +85,8 @@ export default function Signup() {
       setLoading(false);
     }
   };
+
+  if (!auth) return <FirebaseSetupNotice />;
 
   return (
     <div className="mx-auto grid min-h-[calc(100vh-180px)] w-full max-w-6xl items-center gap-10 px-4 py-12 lg:grid-cols-[0.9fr_1fr]">

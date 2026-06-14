@@ -18,14 +18,19 @@ export function createDefaultUserProfile(user: User, fullName?: string): UserPro
     phoneNumber: "",
     defaultWebsiteType: "Business Landing Page",
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
   };
 }
 
-export async function ensureUserProfile(user: User, fullName?: string) {
+export async function ensureUserProfile(user: User, fullName?: string): Promise<UserProfile> {
+  const fallback = createDefaultUserProfile(user, fullName);
+
+  if (!db) {
+    return fallback;
+  }
+
   const profileRef = doc(db, "users", user.uid);
   const profileSnap = await getDoc(profileRef);
-  const fallback = createDefaultUserProfile(user, fullName);
 
   if (!profileSnap.exists()) {
     await setDoc(profileRef, fallback);
@@ -40,10 +45,10 @@ export async function ensureUserProfile(user: User, fullName?: string) {
     email: user.email || existing.email || "",
     photoURL: user.photoURL || existing.photoURL || "",
     fullName: fullName || user.displayName || existing.fullName || "",
-    updatedAt: Date.now()
+    font: existing.font || (existing as any).fontPreference || "Inter",
+    updatedAt: Date.now(),
   };
 
   await setDoc(profileRef, profile, { merge: true });
   return profile;
 }
-

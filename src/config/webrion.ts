@@ -6,6 +6,14 @@ export type DemoLink = {
   prompt: string;
 };
 
+export type WebrionTemplate = {
+  name: string;
+  demoUrl: string;
+  category: string;
+  description: string;
+  prompt: string;
+};
+
 export type PromptSuggestion = {
   title: string;
   category: string;
@@ -42,6 +50,8 @@ export const webrionConfig = {
   workingHours: "Monday to Saturday, 9:00 AM to 7:00 PM",
   description:
     "Webrion creates fast, mobile-friendly websites for clinics, hotels, restaurants, coaching centers, local shops, gyms, salons, portfolios, landing pages, and service businesses across India.",
+  liveSiteSummary:
+    "Webrion is an India-based website development brand by Aditya Chaurasiya. It builds fast, mobile-friendly websites for hotels, hospitals, coaching centers, restaurants, gyms, salons, shops, portfolios, landing pages, and service businesses with WhatsApp CTAs, local SEO, pricing sections, templates, and clean responsive UI.",
   services: [
     "Business website development",
     "Restaurant website design",
@@ -121,6 +131,15 @@ export const webrionConfig = {
         "Create a modern SaaS website similar to Postube with hero section, feature cards, dashboard preview, pricing, testimonials, FAQ, and conversion-focused CTA."
     }
   ] satisfies DemoLink[],
+  get templates(): WebrionTemplate[] {
+    return this.demoLinks.map((demo) => ({
+      name: demo.name,
+      demoUrl: demo.url,
+      category: demo.category,
+      description: demo.description,
+      prompt: demo.prompt,
+    }));
+  },
   portfolioProjects: [
     "Surya Hotel",
     "PoSTube",

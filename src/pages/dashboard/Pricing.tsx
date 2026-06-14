@@ -1,5 +1,5 @@
 import { useAuth } from "../../lib/auth";
-import { auth, db } from "../../lib/firebase";
+import { db } from "../../lib/firebase";
 import { IndianRupee, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { addDoc, collection } from "firebase/firestore";
@@ -42,6 +42,10 @@ export default function DashboardPricing() {
           const verifyData = await verifyRes.json();
           if (verifyData.success) {
             // Log to Firebase
+            if (!db) {
+              alert("Payment verified, but Firebase is not configured to save payment history.");
+              return;
+            }
             await addDoc(collection(db, "payments"), {
               user_id: user.uid,
               plan: planName,

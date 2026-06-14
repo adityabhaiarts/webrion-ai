@@ -42,7 +42,9 @@ export default function DashboardLayout() {
   }, [profile?.theme, profile?.font]);
 
   const handleLogout = async () => {
-    await signOut(auth);
+    if (auth) {
+      await signOut(auth);
+    }
     navigate("/");
   };
 

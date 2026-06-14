@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Mail } from "lucide-react";
 import { GoogleAuthProvider, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth } from "../lib/firebase";
+import FirebaseSetupNotice from "../components/FirebaseSetupNotice";
 import { ensureUserProfile } from "../lib/firestore";
 import { webrionConfig } from "../config/webrion";
 
@@ -14,8 +15,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
 
-  const handleLogin = async (event: any) => {
+  const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!auth) {
+      setError("Firebase is not configured yet. Add Firebase env variables in Vercel and redeploy.");
+      return;
+    }
     setLoading(true);
     setError(null);
     setResetMessage(null);
@@ -38,6 +43,10 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
+    if (!auth) {
+      setError("Firebase is not configured yet. Add Firebase env variables in Vercel and redeploy.");
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -62,6 +71,11 @@ export default function Login() {
     setError(null);
     setResetMessage(null);
 
+    if (!auth) {
+      setError("Firebase is not configured yet. Add Firebase env variables in Vercel and redeploy.");
+      return;
+    }
+
     try {
       await sendPasswordResetEmail(auth, email);
       setResetMessage("Password reset email sent. Check your inbox.");
@@ -69,6 +83,8 @@ export default function Login() {
       setError(err.message || "Unable to send password reset email.");
     }
   };
+
+  if (!auth) return <FirebaseSetupNotice />;
 
   return (
     <div className="mx-auto grid min-h-[calc(100vh-180px)] w-full max-w-6xl items-center gap-10 px-4 py-12 lg:grid-cols-[1fr_0.9fr]">

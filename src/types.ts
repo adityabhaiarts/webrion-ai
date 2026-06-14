@@ -9,7 +9,7 @@ export type GeneratedProject = {
   websiteType?: string;
   files: GeneratedFile[];
   deploymentSteps: string;
-  suggestions: string;
+  suggestions: string[];
 };
 
 export type GenerationOptions = {
