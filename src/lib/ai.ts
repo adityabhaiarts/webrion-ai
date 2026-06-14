@@ -16,7 +16,7 @@ let openai: OpenAI | null = null;
 function getGeminiClient(): GoogleGenAI {
   if (!ai) {
     const key = process.env.GEMINI_API_KEY;
-    if (!key) throw new Error("GEMINI_API_KEY environment variable is required.");
+    if (!key) throw new Error("GEMINI_API_KEY is missing in Vercel Environment Variables.");
     ai = new GoogleGenAI({ apiKey: key });
   }
   return ai;
@@ -25,7 +25,7 @@ function getGeminiClient(): GoogleGenAI {
 function getOpenAIClient(): OpenAI {
   if (!openai) {
     const key = process.env.OPENAI_API_KEY;
-    if (!key) throw new Error("OPENAI_API_KEY environment variable is required.");
+    if (!key) throw new Error("OPENAI_API_KEY is missing in Vercel Environment Variables.");
     openai = new OpenAI({ apiKey: key });
   }
   return openai;
@@ -33,52 +33,57 @@ function getOpenAIClient(): OpenAI {
 
 export async function generateWebsiteCode({ prompt }: GenerateConfig) {
   const client = getOpenAIClient();
-  
+
   const response = await client.chat.completions.create({
-    model: "gpt-4o",
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
     messages: [
       {
         role: "system",
-        content: `You are Webrion AI, a professional AI website generator for local businesses. You generate complete website code (HTML, CSS, JS, and sometimes PHP).
+        content: `You are Webrion AI, a premium website generator. Return ONLY valid JSON. No markdown fences.
 
-Return MUST be a valid JSON object matching this schema exactly. No other text, no markdown fences:
+Schema:
 {
+  "projectName": "short project name",
+  "description": "short useful summary",
+  "websiteType": "business type",
   "files": [
-    { "name": "index.html", "content": "..." },
-    { "name": "style.css", "content": "..." },
-    { "name": "script.js", "content": "..." }
+    { "name": "index.html", "content": "complete code" },
+    { "name": "style.css", "content": "complete code" },
+    { "name": "script.js", "content": "complete code" }
   ],
-  "deployment_steps": "markdown guide here",
-  "suggestions": "short text"
-}`
+  "deploymentSteps": "clear steps to deploy",
+  "suggestions": ["short suggestion 1", "short suggestion 2"]
+}
+
+Rules:
+- Make modern responsive websites.
+- Include WhatsApp/contact CTAs when useful.
+- Do not include unsafe external scripts except common CDN links when needed.
+- Keep code complete and ready to save as files.`
       },
-      {
-        role: "user",
-        content: prompt
-      }
+      { role: "user", content: prompt }
     ],
     response_format: { type: "json_object" },
-    temperature: 0.2
+    temperature: 0.25
   });
 
-  return response.choices[0].message.content;
+  return response.choices[0]?.message?.content || "";
 }
 
 export async function generateChatReply({ prompt, history }: ChatConfig) {
   const client = getGeminiClient();
-  
-  const historyText = history ? history.map((m: any) => `${m.role}: ${m.content}`).join("\n") : "";
-  const combinedPrompt = historyText 
+  const historyText = history ? history.slice(-8).map((m) => `${m.role}: ${m.content}`).join("\n") : "";
+  const combinedPrompt = historyText
     ? `Previous conversation:\n${historyText}\n\nUser: ${prompt}`
     : prompt;
 
   const response = await client.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
     contents: combinedPrompt,
     config: {
-      systemInstruction: "You are Webrion AI, a helpful, professional AI assistant for a website generation platform. You guide users, provide website ideas, and discuss technical setups. If a user asks to generate a website, tell them you can do that and ask for details, or suggest they use the generator. Keep responses concise.",
+      systemInstruction: "You are Webrion AI, a friendly website-building assistant. Give useful, concise replies. When the user asks for code, provide clear code and next steps.",
     }
   });
 
-  return response.text;
+  return response.text || "";
 }

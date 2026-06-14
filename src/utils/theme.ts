@@ -1,5 +1,7 @@
 const themeClasses: Record<string, string> = {
-  "Dark Green": "theme-dark-green",
+  "Light Clean": "theme-light-clean",
+  "ChatGPT Light": "theme-chatgpt-light",
+  "Dark Green": "theme-emerald-glow",
   "Pure Dark": "theme-pure-dark",
   "Emerald Glow": "theme-emerald-glow",
   "Minimal Black": "theme-minimal-black"
@@ -12,10 +14,9 @@ const fontFamilies: Record<string, string> = {
   "System Default": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
 };
 
-export function applyDashboardPreferences(theme = "Dark Green", font = "Inter") {
+export function applyDashboardPreferences(theme = "Light Clean", font = "Inter") {
   const root = document.documentElement;
   Object.values(themeClasses).forEach((className) => root.classList.remove(className));
-  root.classList.add(themeClasses[theme] ?? themeClasses["Dark Green"]);
+  root.classList.add(themeClasses[theme] ?? themeClasses["Light Clean"]);
   root.style.setProperty("--webrion-font", fontFamilies[font] ?? fontFamilies.Inter);
 }
-

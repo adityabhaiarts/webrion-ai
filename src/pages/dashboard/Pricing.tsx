@@ -1,140 +1,165 @@
 import { useAuth } from "../../lib/auth";
 import { db } from "../../lib/firebase";
-import { IndianRupee, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, IndianRupee, Loader2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, doc, setDoc } from "firebase/firestore";
+
+declare global {
+  interface Window {
+    Razorpay?: any;
+  }
+}
+
+const plans = [
+  {
+    name: "monthly",
+    label: "Monthly Pro",
+    amount: 1599,
+    suffix: "/mo",
+    highlight: false,
+    features: ["Unlimited generations", "HTML CSS JS + PHP", "Premium templates", "ZIP download", "Saved chat history"],
+  },
+  {
+    name: "yearly",
+    label: "Yearly Pro",
+    amount: 15999,
+    suffix: "/year",
+    highlight: true,
+    features: ["Everything in Monthly", "2 months free", "Priority support", "Fast client-ready output", "Best value"],
+  },
+];
+
+function loadRazorpayScript() {
+  return new Promise<boolean>((resolve) => {
+    if (typeof window === "undefined") return resolve(false);
+    if (window.Razorpay) return resolve(true);
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
 
 export default function DashboardPricing() {
-  const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+  const { user, refreshProfile } = useAuth();
+  const [isLoading, setIsLoading] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const markPlanActive = async (planName: string, paymentInfo: Record<string, any>) => {
+    if (!user || !db) return;
+    try {
+      await addDoc(collection(db, "payments"), {
+        userId: user.uid,
+        plan: planName,
+        amount: paymentInfo.amount,
+        currency: "INR",
+        status: "success",
+        paymentProvider: "razorpay",
+        ...paymentInfo,
+        createdAt: Date.now(),
+      });
+      await setDoc(doc(db, "users", user.uid), { plan: planName, updatedAt: Date.now() }, { merge: true });
+      await refreshProfile();
+    } catch (error) {
+      console.warn("[Webrion] Payment saved locally but Firestore update failed:", error);
+    }
+  };
 
   const handleSubscribe = async (planName: string, amount: number) => {
-    if (!user) return alert("Please login first");
-    setIsLoading(true);
+    if (!user) {
+      setMessage("Please login before starting payment.");
+      return;
+    }
+
+    setIsLoading(planName);
+    setMessage(null);
+
     try {
-      // 1. Create order
-      const res = await fetch("/api/razorpay/order", {
+      const sdkReady = await loadRazorpayScript();
+      if (!sdkReady || !window.Razorpay) throw new Error("Razorpay checkout script could not load. Check network or ad-blocker.");
+
+      const orderRes = await fetch("/api/razorpay/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, plan: planName })
+        body: JSON.stringify({ amount, plan: planName }),
       });
-      const data = await res.json();
-      
-      // 2. Open Razorpay Checkout properly
+      const order = await orderRes.json().catch(() => null);
+      if (!orderRes.ok) throw new Error(order?.error || "Could not create Razorpay order. Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Vercel.");
+
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_T1XRPeeIt3WA4c",
-        amount: data.amount,
-        currency: "INR",
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency || "INR",
         name: "Webrion AI",
-        description: "Pro Plan Subscription",
-        order_id: data.orderId,
-        handler: async function (response: any) {
-          // 3. Verify Payment
-          const verifyRes = await fetch("/api/razorpay/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature
-            })
-          });
-          const verifyData = await verifyRes.json();
-          if (verifyData.success) {
-            // Log to Firebase
-            if (!db) {
-              alert("Payment verified, but Firebase is not configured to save payment history.");
-              return;
-            }
-            await addDoc(collection(db, "payments"), {
-              user_id: user.uid,
-              plan: planName,
-              amount: amount,
-              currency: "INR",
-              status: "success",
-              payment_provider: "razorpay",
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              created_at: Date.now()
+        description: `${planName} subscription`,
+        order_id: order.orderId,
+        prefill: { email: user.email || "" },
+        theme: { color: "#10a37f" },
+        handler: async (response: any) => {
+          try {
+            const verifyRes = await fetch("/api/razorpay/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(response),
             });
-            alert("Payment successful!");
-          } else {
-            alert("Payment verification failed.");
+            const verifyData = await verifyRes.json().catch(() => null);
+            if (!verifyRes.ok || !verifyData?.success) throw new Error(verifyData?.message || "Payment verification failed.");
+
+            await markPlanActive(planName, {
+              amount,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+            });
+            setMessage("Payment successful. Your Pro plan is active.");
+          } catch (error: any) {
+            setMessage(error?.message || "Payment completed but verification failed. Contact support with payment ID.");
           }
         },
-        prefill: {
-          email: user.email || ""
+        modal: {
+          ondismiss: () => setMessage("Payment popup closed. No money was charged if you did not complete payment."),
         },
-        theme: {
-          color: "#10b981"
-        }
       };
-      
-      if (typeof window !== "undefined" && (window as any).Razorpay) {
-        const rzp = new (window as any).Razorpay(options);
-        rzp.open();
-      } else {
-        alert("Razorpay SDK not loaded");
-      }
-    } catch(err: any) {
-      alert("Error: " + err.message);
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err: any) {
+      setMessage(err.message || "Payment could not start.");
     } finally {
-      setIsLoading(false);
+      setIsLoading(null);
     }
   };
 
   return (
-    <div className="p-8 w-full max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Billing & Plans</h1>
-      <p className="text-gray-600 mb-8 max-w-2xl">
-         Manage your subscription to unlock premium features and unlimited generations.
-      </p>
+    <div className="mx-auto w-full max-w-6xl p-4 text-slate-950 md:p-8">
+      <div className="mb-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700"><ShieldCheck className="h-4 w-4" /> Billing & Plans</div>
+        <h1 className="text-3xl font-black tracking-tight">Upgrade Webrion AI</h1>
+        <p className="mt-2 max-w-2xl text-slate-500">Use Razorpay checkout for subscriptions. Keep Razorpay secret keys only in Vercel server env, never in frontend code.</p>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 flex-1">
-        <div className="p-8 rounded-3xl border border-gray-200 bg-white relative flex flex-col shadow-sm">
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Monthly Pro</h3>
-          <div className="flex items-baseline gap-1 mb-6">
-            <IndianRupee className="w-5 h-5 text-gray-400" />
-            <span className="text-4xl font-bold text-gray-900">1,599</span>
-            <span className="text-gray-500 text-sm">/mo</span>
-          </div>
-          <button 
-            onClick={() => handleSubscribe("monthly", 1599)}
-            disabled={isLoading}
-            className="block text-center w-full py-3 rounded-xl bg-gray-900 text-white font-medium hover:bg-gray-800 transition-colors mb-8 disabled:opacity-50"
-          >
-            {isLoading ? "Processing..." : "Subscribe Monthly"}
-          </button>
-          <ul className="flex flex-col gap-4 text-sm text-gray-600">
-            <li className="flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-brand-500" /> Unlimited generations</li>
-            <li className="flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-brand-500" /> HTML CSS JS + PHP</li>
-            <li className="flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-brand-500" /> Premium Templates</li>
-          </ul>
-        </div>
+      {message && <div className="mb-6 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><AlertCircle className="h-5 w-5 shrink-0" /> {message}</div>}
 
-        <div className="p-8 rounded-3xl border-2 border-brand-500 bg-brand-50/50 relative flex flex-col shadow-lg shadow-brand-500/10">
-          <div className="absolute top-0 right-8 -translate-y-1/2 bg-brand-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-sm">
-            BEST VALUE
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {plans.map((plan) => (
+          <div key={plan.name} className={`relative flex flex-col rounded-3xl border bg-white p-8 shadow-sm ${plan.highlight ? "border-emerald-300 ring-4 ring-emerald-50" : "border-slate-200"}`}>
+            {plan.highlight && <div className="absolute right-8 top-0 -translate-y-1/2 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-black text-white shadow-sm">BEST VALUE</div>}
+            <h3 className="text-xl font-black text-slate-950">{plan.label}</h3>
+            <div className="mt-5 flex items-baseline gap-1">
+              <IndianRupee className="h-5 w-5 text-slate-400" />
+              <span className="text-5xl font-black text-slate-950">{plan.amount.toLocaleString("en-IN")}</span>
+              <span className="text-sm font-semibold text-slate-500">{plan.suffix}</span>
+            </div>
+            <button onClick={() => handleSubscribe(plan.name, plan.amount)} disabled={!!isLoading} className={`mt-6 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 font-bold transition disabled:opacity-50 ${plan.highlight ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-slate-950 text-white hover:bg-slate-800"}`}>
+              {isLoading === plan.name ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {isLoading === plan.name ? "Opening checkout..." : `Subscribe ${plan.label}`}
+            </button>
+            <ul className="mt-7 grid gap-4 text-sm text-slate-600">
+              {plan.features.map((feature) => <li key={feature} className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 text-emerald-600" /> {feature}</li>)}
+            </ul>
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Yearly Pro</h3>
-          <div className="flex items-baseline gap-1 mb-6">
-            <IndianRupee className="w-5 h-5 text-gray-400" />
-            <span className="text-4xl font-bold text-gray-900">15,999</span>
-            <span className="text-gray-500 text-sm">/year</span>
-          </div>
-          <button 
-            onClick={() => handleSubscribe("yearly", 15999)}
-            disabled={isLoading}
-            className="block text-center w-full py-3 rounded-xl bg-brand-500 text-white font-medium hover:bg-brand-600 transition-colors shadow-md shadow-brand-500/20 mb-8 disabled:opacity-50"
-          >
-            {isLoading ? "Processing..." : "Subscribe Yearly"}
-          </button>
-          <ul className="flex flex-col gap-4 text-sm text-gray-600">
-            <li className="flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-brand-500" /> All Monthly Pro Features</li>
-            <li className="flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-brand-500" /> 2 Months Free</li>
-            <li className="flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-brand-500" /> Priority Support</li>
-          </ul>
-        </div>
+        ))}
       </div>
     </div>
   );

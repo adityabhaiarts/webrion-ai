@@ -1,35 +1,25 @@
-import { FileCode2 } from "lucide-react";
 import type { GeneratedFile } from "../types";
 import { cn } from "../lib/utils";
 
-type Props = {
-  files: GeneratedFile[];
-  activeFile: string;
-  onSelect: (fileName: string) => void;
-};
-
-export default function FileTree({ files, activeFile, onSelect }: Props) {
+export default function FileTree({ files, activeFile, onSelect }: { files: GeneratedFile[]; activeFile: string; onSelect: (name: string) => void }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-3">
-      <div className="mb-3 px-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Files</div>
-      <div className="space-y-1">
+    <aside className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+      <p className="mb-3 px-2 text-xs font-black uppercase tracking-[0.2em] text-slate-400">Files</p>
+      <div className="grid gap-1">
         {files.map((file) => (
           <button
-            key={file.name}
             type="button"
+            key={file.name}
             onClick={() => onSelect(file.name)}
             className={cn(
-              "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
-              activeFile === file.name
-                ? "bg-emerald-400/15 text-emerald-100"
-                : "text-slate-400 hover:bg-white/5 hover:text-white",
+              "truncate rounded-xl px-3 py-2 text-left font-mono text-xs transition",
+              activeFile === file.name ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-white hover:text-slate-950"
             )}
           >
-            <FileCode2 className="h-4 w-4" />
-            <span className="truncate font-mono text-xs">{file.name}</span>
+            {file.name}
           </button>
         ))}
       </div>
-    </div>
+    </aside>
   );
 }

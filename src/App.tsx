@@ -22,7 +22,7 @@ import DashboardSettings from "./pages/dashboard/Settings";
 // Public route that redirects to dashboard if logged in
 const PublicRoute = ({ children }: { children: ReactNode }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen bg-slate-950" />;
+  if (loading) return <div className="min-h-screen bg-slate-50" />;
   if (user) return <Navigate to="/dashboard/generator" replace />;
   return <>{children}</>;
 };
@@ -30,7 +30,7 @@ const PublicRoute = ({ children }: { children: ReactNode }) => {
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const { user, loading } = useAuth();
   if (loading) {
-    return <div className="grid min-h-screen place-items-center bg-slate-950 text-white">Loading Webrion AI...</div>;
+    return <div className="grid min-h-screen place-items-center bg-slate-50 text-slate-700">Loading Webrion AI...</div>;
   }
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;

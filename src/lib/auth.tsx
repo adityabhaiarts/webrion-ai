@@ -33,8 +33,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const nextProfile = await ensureUserProfile(auth.currentUser);
-    setProfile(nextProfile);
+    try {
+      const nextProfile = await ensureUserProfile(auth.currentUser);
+      setProfile(nextProfile);
+    } catch (error) {
+      console.warn('[Webrion] Could not refresh profile:', error);
+    }
   };
 
   useEffect(() => {
@@ -49,8 +53,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(currentUser);
 
       if (currentUser) {
-        const nextProfile = await ensureUserProfile(currentUser);
-        setProfile(nextProfile);
+        try {
+          const nextProfile = await ensureUserProfile(currentUser);
+          setProfile(nextProfile);
+        } catch (error) {
+          console.warn('[Webrion] Profile load failed:', error);
+          setProfile(null);
+        }
       } else {
         setProfile(null);
       }
