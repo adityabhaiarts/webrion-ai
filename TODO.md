@@ -11,7 +11,7 @@
 
 
 ## UI/UX Premium Redesign (glassmorphism SaaS)
-- [ ] Redesign `src/components/DashboardLayout.tsx` to match premium left icon sidebar + mobile bottom navigation.
+- [x] Redesign `src/components/DashboardLayout.tsx` to match premium left icon sidebar + mobile bottom navigation.
 - [ ] Update `src/pages/Landing.tsx`, `src/pages/Login.tsx`, `src/pages/Signup.tsx` to match premium onboarding/auth UI.
 - [ ] Restyle `src/pages/dashboard/Generator.tsx` (prompt card glow/focus, tabs, device toggle, suggestion chips, improved chat/code output polish).
 - [ ] Restyle `src/pages/dashboard/Templates.tsx` into a premium template gallery with categories and polished cards.

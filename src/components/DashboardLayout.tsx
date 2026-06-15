@@ -34,6 +34,13 @@ export default function DashboardLayout() {
   const { user, profile } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const mobileNav = navItems.map((item) => ({
+    name: item.name,
+    path: item.path,
+    Icon: item.icon,
+  }));
+
+
   useEffect(() => {
     applyDashboardPreferences(profile?.theme || "Light Clean", profile?.font || "Inter");
   }, [profile?.theme, profile?.font]);
@@ -53,26 +60,34 @@ export default function DashboardLayout() {
 
   const sidebar = (
     <aside className="flex h-full w-[18.5rem] shrink-0 flex-col border-r border-slate-200 bg-white text-slate-800">
-      <div className="border-b border-slate-200 p-4">
-        <Link to="/dashboard/generator" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3">
-          <img src={webrionConfig.logoPath} alt="Webrion logo" className="h-10 w-10 rounded-xl" />
+      <div className="border-b border-white/10 bg-white/60 p-4 backdrop-blur supports-[backdrop-filter]:bg-white/50">
+        <Link
+          to="/dashboard/generator"
+          onClick={() => setIsMobileMenuOpen(false)}
+          className="flex items-center gap-3"
+        >
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-emerald-500/15 to-slate-950/5 ring-1 ring-emerald-500/20">
+            <img src={webrionConfig.logoPath} alt="Webrion logo" className="h-8 w-8 rounded-xl" />
+          </div>
           <div className="min-w-0">
             <div className="truncate text-base font-black text-slate-950">{webrionConfig.productName}</div>
-            <div className="text-xs font-semibold text-emerald-700">Gemini code workspace</div>
+            <div className="text-xs font-semibold text-emerald-700">Webrion AI workspace</div>
           </div>
         </Link>
       </div>
+
 
       <div className="p-3">
         <button
           type="button"
           onClick={startNewChat}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-600"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-slate-950 via-slate-950 to-emerald-700/90 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/20 transition hover:from-emerald-700 hover:to-slate-950"
         >
           <MessageSquarePlus className="h-4 w-4" />
           New Chat
         </button>
       </div>
+
 
       <nav className="custom-scrollbar flex-1 overflow-y-auto px-3 pb-3">
         <div className="grid gap-1">
@@ -132,18 +147,28 @@ export default function DashboardLayout() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f7f7f8] text-slate-950">
+    <div className="relative flex h-screen overflow-hidden bg-[#f7f7f8] text-slate-950">
+      {/* Decorative glow */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-emerald-500/10 via-transparent to-transparent" />
+
       <div className="hidden lg:block">{sidebar}</div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col">
+
+
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 lg:hidden">
           <Link to="/dashboard/generator" className="flex items-center gap-2">
             <img src={webrionConfig.logoPath} alt="Webrion logo" className="h-9 w-9 rounded-xl" />
             <span className="font-black">{webrionConfig.productName}</span>
           </Link>
-          <button type="button" onClick={() => setIsMobileMenuOpen(true)} className="rounded-xl border border-slate-200 p-2">
-            <Menu className="h-5 w-5" />
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="rounded-xl border border-white/10 bg-white/70 p-2 backdrop-blur supports-[backdrop-filter]:bg-white/60"
+          >
+            <Menu className="h-5 w-5 text-slate-900" />
           </button>
+
         </header>
 
         {isMobileMenuOpen && (
@@ -168,9 +193,43 @@ export default function DashboardLayout() {
           </div>
         )}
 
-        <main className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#f7f7f8]">
+        <main className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#f7f7f8] pb-16 lg:pb-0">
           <Outlet />
         </main>
+
+        {/* Mobile bottom navigation */}
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60 lg:hidden">
+          <div className="mx-auto flex h-16 max-w-md items-center justify-around px-4">
+            {mobileNav.map((item) => {
+              const Icon = item.Icon;
+              const isActive = location.pathname.startsWith(item.path);
+
+              return (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className={cn(
+                    "flex flex-col items-center gap-1 text-[11px] font-bold transition",
+                    isActive
+                      ? "text-emerald-700"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "h-5 w-5",
+                      isActive
+                        ? "text-emerald-700"
+                        : "text-slate-500"
+                    )}
+                  />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+
       </div>
     </div>
   );

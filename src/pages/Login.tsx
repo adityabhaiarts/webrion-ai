@@ -94,31 +94,38 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.12),transparent_34%),#f7f7f8] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.10),transparent_35%),radial-gradient(circle_at_bottom,rgba(2,132,199,0.07),transparent_45%)]" />
+
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-6 lg:grid-cols-[1fr_430px]">
-        <section className="order-2 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70 lg:block">
-          <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <section className="order-2 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white/70 shadow-xl shadow-slate-200/70 backdrop-blur supports-[backdrop-filter]:bg-white/60 lg:block">
+          <div className="border-b border-white/10 bg-white/60 px-5 py-4 backdrop-blur supports-[backdrop-filter]:bg-white/50">
+
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-red-400" />
               <span className="h-3 w-3 rounded-full bg-yellow-300" />
               <span className="h-3 w-3 rounded-full bg-emerald-400" />
               <span className="ml-4 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-                Gemini workspace
+                Premium AI workspace
               </span>
+
             </div>
           </div>
           <div className="p-7">
             <div className="mx-auto mb-8 grid h-20 w-20 place-items-center rounded-2xl bg-emerald-500 text-white shadow-2xl shadow-emerald-200">
               <Sparkles className="h-9 w-9" />
             </div>
+
             <h1 className="text-center text-4xl font-black tracking-tight text-slate-950">
               Build websites by chatting.
             </h1>
             <p className="mx-auto mt-3 max-w-md text-center text-base leading-7 text-slate-500">
-              Generate HTML, CSS, JavaScript, PHP forms, preview code, and export ZIP files from one clean dashboard.
+              Generate HTML, CSS, JavaScript, PHP forms, preview code, and export ZIP files from one premium dashboard.
             </p>
+
             <div className="mt-8 grid gap-3">
               {[
-                "Gemini-first code generation",
+                "OpenRouter-powered code generation",
+
                 "Live preview and copy controls",
                 "Saved chats and generated websites",
               ].map((item) => (

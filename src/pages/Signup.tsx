@@ -97,12 +97,16 @@ export default function Signup() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.12),transparent_34%),#f7f7f8] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-6 lg:grid-cols-[430px_1fr]">
-        <section className="mx-auto w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/70 sm:p-7">
+
+        <section className="mx-auto w-full max-w-md rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-xl shadow-slate-200/70 backdrop-blur supports-[backdrop-filter]:bg-white/60 sm:p-7">
           <div className="mb-8 flex items-center gap-3">
+
+
             <img src={webrionConfig.logoPath} alt="Webrion logo" className="h-11 w-11 rounded-xl" />
             <div>
               <h2 className="text-2xl font-black tracking-tight text-slate-950">Create account</h2>
-              <p className="text-sm text-slate-500">Start generating with Gemini.</p>
+              <p className="text-sm text-slate-500">Start generating with Webrion AI.</p>
+
             </div>
           </div>
 
@@ -206,8 +210,9 @@ export default function Signup() {
           </p>
         </section>
 
-        <section className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70 lg:block">
+        <section className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70 backdrop-blur supports-[backdrop-filter]:bg-white/60 lg:block">
           <div className="grid min-h-[620px] place-items-center bg-[linear-gradient(180deg,#ffffff,#f2fbf7)] p-8">
+
             <div className="max-w-xl text-center">
               <div className="mx-auto mb-8 grid h-24 w-24 place-items-center rounded-3xl bg-emerald-500 text-white shadow-2xl shadow-emerald-200">
                 <Sparkles className="h-11 w-11" />
@@ -220,10 +225,12 @@ export default function Signup() {
               </p>
               <div className="mt-8 grid gap-3 text-left">
                 {[
-                  "Gemini-first website generation",
+                  "OpenRouter-powered website generation",
                   "Responsive UI for mobile and desktop",
                   "Secure server routes keep API keys hidden",
                 ].map((item) => (
+
+
                   <div key={item} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
                     <ShieldCheck className="h-4 w-4 text-emerald-600" />
                     {item}

@@ -14,6 +14,8 @@ const features = [
 export default function Landing() {
   return (
     <div className="bg-slate-50">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.12),transparent_35%),radial-gradient(circle_at_bottom,rgba(2,132,199,0.08),transparent_45%)]" />
+
       <section className="mx-auto grid min-h-[calc(100vh-78px)] max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_0.95fr] lg:px-8">
         <div>
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-bold text-emerald-700 shadow-sm">
@@ -35,19 +37,28 @@ export default function Landing() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl shadow-slate-200/70">
-          <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white/70 shadow-2xl shadow-slate-200/70 backdrop-blur supports-[backdrop-filter]:bg-white/50">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_38%),radial-gradient(circle_at_bottom,rgba(2,132,199,0.12),transparent_40%)]" />
+          <div className="relative flex items-center justify-between border-b border-white/10 bg-white/60 px-5 py-4">
             <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-400" /><span className="h-3 w-3 rounded-full bg-yellow-300" /><span className="h-3 w-3 rounded-full bg-emerald-400" /></div>
-            <span className="text-xs font-black uppercase tracking-[0.25em] text-slate-400">AI Chat Preview</span>
+            <span className="text-xs font-black uppercase tracking-[0.25em] text-slate-400">AI Workspace Preview</span>
           </div>
+
           <div className="space-y-5 p-5 sm:p-6">
             <div className="flex justify-end"><div className="max-w-[85%] rounded-3xl bg-slate-950 px-4 py-3 text-sm leading-6 text-white">Create a premium hospital website with doctors, appointment form, WhatsApp button and reviews.</div></div>
-            <div className="flex gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"><MessageSquareText className="h-4 w-4" /></div><div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">Done - generated 5 files with preview, ZIP download and deployment steps.</div></div>
+          <div className="flex gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"><MessageSquareText className="h-4 w-4" /></div><div className="rounded-3xl border border-slate-200/70 bg-white/60 px-4 py-3 text-sm leading-6 text-slate-700">Done - generated 5 files with preview, ZIP download and deployment steps.</div></div>
             <div className="grid gap-3 sm:grid-cols-3">
-              {[{ icon: Files, label: "File tree" }, { icon: Eye, label: "Live preview" }, { icon: Download, label: "ZIP export" }].map((item) => <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><item.icon className="mb-3 h-5 w-5 text-emerald-600" /><p className="text-sm font-bold text-slate-900">{item.label}</p></div>)}
+              {[{ icon: Files, label: "File tree" }, { icon: Eye, label: "Live preview" }, { icon: Download, label: "ZIP export" }].map((item) => (
+                <div key={item.label} className="group relative rounded-2xl border border-slate-200/70 bg-white/60 p-4 backdrop-blur transition hover:border-emerald-200">
+                  <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_45%)]" />
+                  <item.icon className="mb-3 h-5 w-5 text-emerald-600 relative" />
+                  <p className="relative text-sm font-bold text-slate-900">{item.label}</p>
+                </div>
+              ))}
             </div>
-            <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
+            <div className="rounded-3xl border border-emerald-200/80 bg-emerald-50 p-5">
               <div className="mb-4 flex items-center gap-2 text-sm font-bold text-emerald-800"><Wand2 className="h-4 w-4" /> Generated files</div>
+
               <div className="grid gap-2 font-mono text-sm text-slate-700">
                 {["index.html", "style.css", "script.js", "contact.php", "README.md"].map((file) => <div key={file} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2"><Code2 className="h-4 w-4 text-emerald-600" />{file}</div>)}
               </div>
