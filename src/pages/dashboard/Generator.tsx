@@ -389,7 +389,19 @@ export default function DashboardGenerator() {
         throw new Error(payload.error || "AI generation failed.");
       }
 
+      // Debug: capture raw AI output to diagnose JSON parse failures.
+      try {
+        const raw = payload?.result ?? payload;
+        console.log(
+          "[Webrion] /api/generate raw result (first 5000 chars):",
+          String(raw).slice(0, 5000)
+        );
+      } catch {
+        // ignore debug logging failures
+      }
+
       const project = parseAIResult(payload.result ?? payload, prompt);
+
 
       if (!project.files.length) {
         throw new Error("AI returned no files. Try a more detailed prompt.");
