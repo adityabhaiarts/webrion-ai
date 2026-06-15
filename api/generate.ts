@@ -137,14 +137,16 @@ export default async function handler(req: any, res: any) {
     try {
       data = JSON.parse(text);
     } catch {
-      // If parsing fails, still return raw text as result
-      return res.status(200).json({
-        success: true,
-        result: text,
+      // OpenRouter should always return JSON; if it doesn't, fail loudly.
+      return res.status(502).json({
+        success: false,
+        error:
+          "OpenRouter returned a non-JSON response. Check server logs and OpenRouter status.",
       });
     }
 
     const result = data?.choices?.[0]?.message?.content;
+
 
     if (!result || typeof result !== "string" || !result.trim()) {
       return res.status(500).json({

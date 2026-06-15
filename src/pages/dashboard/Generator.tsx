@@ -119,25 +119,35 @@ function normalizeProject(raw: any, prompt: string): GeneratedProject {
 function extractJsonPayload(result: unknown) {
   if (result && typeof result === "object") return result;
 
-  let cleaned = String(result || "").trim();
-  cleaned = cleaned
+  const raw = String(result ?? "");
+
+  // Strip common markdown wrappers and whitespace.
+  let cleaned = raw
+    .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
 
+  // Fast path: direct JSON.
   try {
     return JSON.parse(cleaned);
   } catch {
+    // Slow path: attempt to extract the first JSON object.
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
 
     if (start >= 0 && end > start) {
-      return JSON.parse(cleaned.slice(start, end + 1));
+      const candidate = cleaned.slice(start, end + 1);
+      return JSON.parse(candidate);
     }
 
-    throw new Error("AI did not return valid JSON.");
+    const preview = raw.slice(0, 300).replace(/\s+/g, " ");
+    throw new Error(
+      `AI did not return valid JSON. Response starts with: ${preview}`
+    );
   }
 }
+
 
 function parseAIResult(result: unknown, prompt: string) {
   return normalizeProject(extractJsonPayload(result), prompt);
