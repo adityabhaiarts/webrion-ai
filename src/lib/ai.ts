@@ -48,14 +48,30 @@ function getOpenAIClient(): OpenAI | null {
 
 function describeAIError(provider: string, error: any) {
   const status = error?.status ? ` ${error.status}` : "";
-  const code = error?.code || error?.error?.code || error?.error?.status;
+  const code =
+    error?.code ||
+    error?.error?.code ||
+    error?.error?.status ||
+    error?.response?.status;
+
   const message =
     error?.error?.message ||
     error?.message ||
+    error?.response?.data?.error?.message ||
+    error?.response?.data?.message ||
     "Unknown provider error";
 
-  return `${provider}${status}${code ? ` ${code}` : ""}: ${message}`;
+  const modelHint =
+    provider.toLowerCase().includes("gemini")
+      ? process.env.GEMINI_MODEL
+      : process.env.OPENAI_MODEL;
+
+  const modelPart = modelHint ? ` (model: ${modelHint})` : "";
+  const codePart = code ? ` ${code}` : "";
+
+  return `${provider}${status}${codePart}${modelPart}: ${message}`;
 }
+
 
 const websiteSystemPrompt = `
 You are Webrion AI, a premium AI website generator.

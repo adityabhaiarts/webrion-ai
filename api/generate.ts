@@ -1,7 +1,8 @@
 import { generateWebsiteCode } from "../src/lib/ai";
 
 function readPrompt(req: any) {
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+  const body =
+    typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
   return typeof body.prompt === "string" ? body.prompt.trim() : "";
 }
 
@@ -51,6 +52,8 @@ export default async function handler(req: any, res: any) {
         ok: false,
         error:
           "No AI key found. Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel Environment Variables.",
+        hint:
+          "Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel environment variables.",
       });
     }
 
@@ -70,12 +73,19 @@ export default async function handler(req: any, res: any) {
   } catch (error: any) {
     console.error("Generate API error:", error);
 
+    const hint =
+      !process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY
+        ? "Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel environment variables."
+        : undefined;
+
     return res.status(500).json({
       ok: false,
       error: error?.message || "Unknown generate API error",
       name: error?.name || null,
       status: error?.status || null,
       code: error?.code || null,
+      hint,
     });
   }
 }
+

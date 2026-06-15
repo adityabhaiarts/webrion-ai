@@ -1,21 +1,18 @@
-# TODO - Webrion AI UI and Generation Hardening
+# TODO - Fix auth redirect + improve AI API failures
 
-## 1. Audit current app flow
-- [x] Inspect routes, dashboard layout, generator page, code viewer, and API routes.
-- [x] Confirm local environment variables exist without exposing secret values.
-- [x] Run TypeScript and production build checks.
+## Step 1
+- [x] Update `src/lib/ai.ts` to improve provider error handling (clear provider + model + likely cause) and ensure failures are returned cleanly.
 
-## 2. Make generation reliable
-- [x] Harden `/api/generate` request validation and AI fallback errors.
-- [x] Make AI JSON parsing tolerant of fenced JSON, extra prose, and alternate file shapes.
-- [ ] Confirm OpenAI/Gemini-backed generation returns usable website files. Blocked by provider responses during smoke test: OpenAI 429 insufficient quota, Gemini 503 high demand.
+## Step 2
+- [x] Update `api/generate.ts` to return consistent error shape (and include `hint` when keys are missing).
 
-## 3. Improve clean responsive UI
-- [x] Refresh generator into a cleaner ChatGPT-like workspace.
-- [x] Fix prompt suggestion contrast and mobile behavior.
-- [x] Polish generated code/preview viewer for desktop and mobile.
-- [x] Remove mojibake characters from visible UI.
+## Step 3
+- [ ] Verify production SPA routing for `ai.webrion.online`: ensure all non-`/api/*` routes rewrite to `index.html` (check/update `vercel.json`).
 
-## 4. Verify pages
-- [x] Check dashboard generator, auth pages, landing page, and generated preview path.
-- [x] Fix any lint/build issues found during verification.
+
+## Step 4
+- [ ] Verify auth guard works on deep links: `/dashboard/*` should redirect to `/login` when logged out.
+
+## Step 5
+- [ ] Build/test locally: `npm run build` (and run dev server if available).
+
