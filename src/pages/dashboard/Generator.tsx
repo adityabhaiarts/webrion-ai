@@ -1,5 +1,4 @@
-limport { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import {
+import { 
   addDoc,
   collection,
   doc,
@@ -440,7 +439,7 @@ export default function DashboardGenerator() {
           <div>
             <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
               <Sparkles className="h-3.5 w-3.5" />
-              Gemini 2.5 Flash
+              Webrion AI (OpenRouter)
             </div>
 
             <h1 className="text-2xl font-black tracking-tight">
