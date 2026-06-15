@@ -121,24 +121,76 @@ function extractJsonPayload(result: unknown) {
 
   const raw = String(result ?? "");
 
-  // Strip common markdown wrappers and whitespace.
-  let cleaned = raw
+  // Strip common markdown wrappers and surrounding whitespace.
+  const cleaned = raw
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
 
-  // Fast path: direct JSON.
+  // 1) Fast path: direct JSON.
   try {
     return JSON.parse(cleaned);
   } catch {
-    // Slow path: attempt to extract the first JSON object.
+    // 2) Extract the first JSON object by bracket balancing.
     const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
+    if (start < 0) {
+      const preview = raw.slice(0, 300).replace(/\s+/g, " ");
+      throw new Error(
+        `AI did not return valid JSON. Response starts with: ${preview}`
+      );
+    }
 
-    if (start >= 0 && end > start) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start; i < cleaned.length; i++) {
+      const ch = cleaned[i];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          const candidate = cleaned.slice(start, i + 1);
+          try {
+            return JSON.parse(candidate);
+          } catch {
+            break;
+          }
+        }
+      }
+    }
+
+    // 3) As a last resort, try the substring between first { and last }.
+    const end = cleaned.lastIndexOf("}");
+    if (end > start) {
       const candidate = cleaned.slice(start, end + 1);
-      return JSON.parse(candidate);
+      try {
+        return JSON.parse(candidate);
+      } catch {
+        // fallthrough
+      }
     }
 
     const preview = raw.slice(0, 300).replace(/\s+/g, " ");
@@ -147,6 +199,7 @@ function extractJsonPayload(result: unknown) {
     );
   }
 }
+
 
 
 function parseAIResult(result: unknown, prompt: string) {
