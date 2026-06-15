@@ -14,11 +14,8 @@ export default async function handler(req: any, res: any) {
       ok: true,
       message: "Webrion generate API is live",
       env: {
-        hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
-        hasGemini: Boolean(process.env.GEMINI_API_KEY),
-        preferredProvider: process.env.AI_PROVIDER || "gemini",
-        openAIModel: process.env.OPENAI_MODEL || "not set",
-        geminiModel: process.env.GEMINI_MODEL || "not set",
+        hasOpenRouter: Boolean(process.env.OPENROUTER_API_KEY),
+        model: process.env.OPENROUTER_MODEL || "not set",
       },
     });
   }
@@ -47,13 +44,11 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    if (!process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       return res.status(500).json({
         ok: false,
-        error:
-          "No AI key found. Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel Environment Variables.",
-        hint:
-          "Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel environment variables.",
+        error: "No AI key found. Add OPENROUTER_API_KEY in Vercel Environment Variables.",
+        hint: "Add OPENROUTER_API_KEY in Vercel environment variables.",
       });
     }
 
@@ -74,8 +69,8 @@ export default async function handler(req: any, res: any) {
     console.error("Generate API error:", error);
 
     const hint =
-      !process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY
-        ? "Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel environment variables."
+      !process.env.OPENROUTER_API_KEY
+        ? "Add OPENROUTER_API_KEY in Vercel environment variables."
         : undefined;
 
     return res.status(500).json({

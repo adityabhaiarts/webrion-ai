@@ -9,8 +9,8 @@ import crypto from "crypto";
 dotenv.config();
 
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || '',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || ''
+  key_id: process.env.RAZORPAY_KEY_ID || "",
+  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
 });
 
 async function startServer() {
@@ -26,9 +26,8 @@ async function startServer() {
       status: "ok",
       message: "Webrion AI Backend Running",
       env: {
-        hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
-        hasGemini: Boolean(process.env.GEMINI_API_KEY),
-        preferredProvider: process.env.AI_PROVIDER || "gemini",
+        hasOpenRouter: Boolean(process.env.OPENROUTER_API_KEY),
+        model: process.env.OPENROUTER_MODEL || "not set",
       },
     });
   });
@@ -38,28 +37,31 @@ async function startServer() {
       ok: true,
       message: "Webrion generate API is live",
       env: {
-        hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
-        hasGemini: Boolean(process.env.GEMINI_API_KEY),
-        preferredProvider: process.env.AI_PROVIDER || "gemini",
-        openAIModel: process.env.OPENAI_MODEL || "not set",
-        geminiModel: process.env.GEMINI_MODEL || "not set",
+        hasOpenRouter: Boolean(process.env.OPENROUTER_API_KEY),
+        model: process.env.OPENROUTER_MODEL || "not set",
       },
     });
   });
 
   app.post("/api/generate", async (req, res) => {
     try {
-      const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
+      const prompt =
+        typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
       if (!prompt) {
         return res.status(400).json({ ok: false, error: "Prompt is required" });
       }
 
       if (prompt.length > 20000) {
-        return res.status(413).json({ ok: false, error: "Prompt is too large. Keep it under 20,000 characters." });
+        return res
+          .status(413)
+          .json({ ok: false, error: "Prompt is too large. Keep it under 20,000 characters." });
       }
 
-      if (!process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ ok: false, error: "No AI key found. Add OPENAI_API_KEY or GEMINI_API_KEY." });
+      if (!process.env.OPENROUTER_API_KEY) {
+        return res.status(500).json({
+          ok: false,
+          error: "No AI key found. Add OPENROUTER_API_KEY.",
+        });
       }
 
       const result = await generateWebsiteCode({ prompt });
@@ -75,9 +77,8 @@ async function startServer() {
       ok: true,
       message: "Webrion chat API is live",
       env: {
-        hasGemini: Boolean(process.env.GEMINI_API_KEY),
-        hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
-        preferredProvider: process.env.AI_PROVIDER || "gemini",
+        hasOpenRouter: Boolean(process.env.OPENROUTER_API_KEY),
+        model: process.env.OPENROUTER_MODEL || "not set",
       },
     });
   });
@@ -89,8 +90,11 @@ async function startServer() {
         return res.status(400).json({ ok: false, error: "Prompt is required" });
       }
 
-      if (!process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ ok: false, error: "No AI key found. Add OPENAI_API_KEY or GEMINI_API_KEY." });
+      if (!process.env.OPENROUTER_API_KEY) {
+        return res.status(500).json({
+          ok: false,
+          error: "No AI key found. Add OPENROUTER_API_KEY.",
+        });
       }
 
       const result = await generateChatReply({ prompt, history });
@@ -101,7 +105,6 @@ async function startServer() {
     }
   });
 
-
   // Real Razorpay endpoints
   app.post("/api/razorpay/order", async (req, res) => {
     try {
@@ -111,13 +114,13 @@ async function startServer() {
         currency: "INR",
         receipt: `receipt_${Math.random().toString(36).substr(2, 9)}`,
       };
-      
+
       const order = await razorpay.orders.create(options);
       res.json({
         orderId: order.id,
         amount: order.amount,
         plan,
-        currency: order.currency
+        currency: order.currency,
       });
     } catch (error: any) {
       console.error("Razorpay Order Error:", error);
@@ -128,14 +131,14 @@ async function startServer() {
   app.post("/api/razorpay/verify", (req, res) => {
     try {
       const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-      
-      const secret = process.env.RAZORPAY_KEY_SECRET || '';
-      
+
+      const secret = process.env.RAZORPAY_KEY_SECRET || "";
+
       const generated_signature = crypto
-        .createHmac('sha256', secret)
+        .createHmac("sha256", secret)
         .update(razorpay_order_id + "|" + razorpay_payment_id)
-        .digest('hex');
-      
+        .digest("hex");
+
       if (generated_signature === razorpay_signature) {
         res.json({ success: true, message: "Payment verified successfully" });
       } else {
@@ -168,3 +171,4 @@ async function startServer() {
 }
 
 startServer();
+

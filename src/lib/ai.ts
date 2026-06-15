@@ -1,6 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
-import OpenAI from "openai";
-
 export interface GenerateConfig {
   prompt: string;
 }
@@ -9,69 +6,6 @@ export interface ChatConfig {
   prompt: string;
   history?: { role: string; content: string }[];
 }
-
-let gemini: GoogleGenAI | null = null;
-let openai: OpenAI | null = null;
-const DEFAULT_AI_PROVIDER = "gemini";
-
-function hasGeminiKey() {
-  return Boolean(process.env.GEMINI_API_KEY);
-}
-
-function getGeminiClient(): GoogleGenAI {
-  const key = process.env.GEMINI_API_KEY;
-
-  if (!key) {
-    throw new Error("GEMINI_API_KEY is missing in Vercel Environment Variables.");
-  }
-
-  if (!gemini) {
-    gemini = new GoogleGenAI({ apiKey: key });
-  }
-
-  return gemini;
-}
-
-function getOpenAIClient(): OpenAI | null {
-  const key = process.env.OPENAI_API_KEY;
-
-  if (!key) {
-    return null;
-  }
-
-  if (!openai) {
-    openai = new OpenAI({ apiKey: key });
-  }
-
-  return openai;
-}
-
-function describeAIError(provider: string, error: any) {
-  const status = error?.status ? ` ${error.status}` : "";
-  const code =
-    error?.code ||
-    error?.error?.code ||
-    error?.error?.status ||
-    error?.response?.status;
-
-  const message =
-    error?.error?.message ||
-    error?.message ||
-    error?.response?.data?.error?.message ||
-    error?.response?.data?.message ||
-    "Unknown provider error";
-
-  const modelHint =
-    provider.toLowerCase().includes("gemini")
-      ? process.env.GEMINI_MODEL
-      : process.env.OPENAI_MODEL;
-
-  const modelPart = modelHint ? ` (model: ${modelHint})` : "";
-  const codePart = code ? ` ${code}` : "";
-
-  return `${provider}${status}${codePart}${modelPart}: ${message}`;
-}
-
 
 const websiteSystemPrompt = `
 You are Webrion AI, a premium AI website generator.
@@ -116,75 +50,55 @@ Rules:
 - Keep file paths safe and simple, such as index.html, style.css, script.js, contact.php, README.md.
 `;
 
+function getOpenRouterKey(): string {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("OPENROUTER_API_KEY is missing in server environment variables.");
+  return key;
+}
+
+function getOpenRouterModel(): string {
+  return process.env.OPENROUTER_MODEL || "meta-llama/llama-3.1-70b-instruct";
+}
+
+async function openRouterChatCompletions({
+  messages,
+  temperature,
+}: {
+  messages: { role: "system" | "user" | "assistant"; content: string }[];
+  temperature?: number;
+}): Promise<string> {
+  const key = getOpenRouterKey();
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model: getOpenRouterModel(),
+      messages,
+      temperature: temperature ?? 0.25,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`OpenRouter request failed (${res.status}). ${text}`);
+  }
+
+  const data = await res.json();
+  return data?.choices?.[0]?.message?.content || "";
+}
+
 export async function generateWebsiteCode({ prompt }: GenerateConfig) {
-  const preferredProvider = (process.env.AI_PROVIDER || DEFAULT_AI_PROVIDER).toLowerCase();
-  const failures: string[] = [];
-
-  const runOpenAI = async () => {
-    const openaiClient = getOpenAIClient();
-    if (!openaiClient) return null;
-
-    const response = await openaiClient.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: websiteSystemPrompt,
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.25,
-    });
-
-    return response.choices[0]?.message?.content || "";
-  };
-
-  const runGemini = async () => {
-    if (!hasGeminiKey()) return null;
-
-    const geminiClient = getGeminiClient();
-    const response = await geminiClient.models.generateContent({
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-      contents: `${websiteSystemPrompt}\n\nUser request:\n${prompt}`,
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.25,
-      },
-    });
-
-    return response.text || "";
-  };
-
-  const providers: Array<[string, () => Promise<string | null>]> =
-    preferredProvider === "gemini"
-      ? [
-          ["Gemini", runGemini],
-          ["OpenAI", runOpenAI],
-        ]
-      : [
-          ["OpenAI", runOpenAI],
-          ["Gemini", runGemini],
-        ];
-
-  for (const [providerName, runProvider] of providers) {
-    try {
-      const result = await runProvider();
-      if (result) return result;
-    } catch (error) {
-      failures.push(describeAIError(providerName, error));
-      console.warn("AI provider failed, trying fallback if available:", error);
-    }
-  }
-
-  if (failures.length) {
-    throw new Error(`AI providers failed. ${failures.join(" | ")}`);
-  }
-
-  throw new Error("No AI key found. Add OPENAI_API_KEY or GEMINI_API_KEY.");
+  return await openRouterChatCompletions({
+    messages: [
+      { role: "system", content: websiteSystemPrompt },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0.25,
+  });
 }
 
 export async function generateChatReply({ prompt, history }: ChatConfig) {
@@ -202,36 +116,12 @@ export async function generateChatReply({ prompt, history }: ChatConfig) {
   const systemInstruction =
     "You are Webrion AI, a concise website-building assistant. Give practical answers. When the user asks for code, provide clear code and next steps.";
 
-  if (hasGeminiKey()) {
-    try {
-      const geminiClient = getGeminiClient();
-      const response = await geminiClient.models.generateContent({
-        model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-        contents: combinedPrompt,
-        config: {
-          systemInstruction,
-        },
-      });
-
-      if (response.text) return response.text;
-    } catch (error) {
-      console.warn("Gemini chat failed, trying OpenAI fallback:", error);
-    }
-  }
-
-  const openaiClient = getOpenAIClient();
-  if (openaiClient) {
-    const response = await openaiClient.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemInstruction },
-        { role: "user", content: combinedPrompt },
-      ],
-      temperature: 0.35,
-    });
-
-    return response.choices[0]?.message?.content || "";
-  }
-
-  throw new Error("No AI key found. Add GEMINI_API_KEY or OPENAI_API_KEY.");
+  return await openRouterChatCompletions({
+    messages: [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: combinedPrompt },
+    ],
+    temperature: 0.35,
+  });
 }
+

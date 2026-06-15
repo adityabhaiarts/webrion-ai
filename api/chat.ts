@@ -12,9 +12,8 @@ export default async function handler(req: any, res: any) {
       ok: true,
       message: "Webrion chat API is live",
       env: {
-        hasGemini: Boolean(process.env.GEMINI_API_KEY),
-        hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
-        preferredProvider: process.env.AI_PROVIDER || "gemini",
+        hasOpenRouter: Boolean(process.env.OPENROUTER_API_KEY),
+        model: process.env.OPENROUTER_MODEL || "not set",
       },
     });
   }
@@ -23,12 +22,14 @@ export default async function handler(req: any, res: any) {
 
   try {
     const { prompt, history } = readBody(req);
-    if (!prompt || typeof prompt !== "string") return res.status(400).json({ ok: false, error: "Prompt is required" });
+    if (!prompt || typeof prompt !== "string")
+      return res.status(400).json({ ok: false, error: "Prompt is required" });
 
-    if (!process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       return res.status(500).json({
         ok: false,
-        error: "No AI key found. Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel Environment Variables.",
+        error: "No AI key found. Add OPENROUTER_API_KEY in Vercel Environment Variables.",
+        hint: "Add OPENROUTER_API_KEY in Vercel environment variables.",
       });
     }
 
@@ -36,6 +37,10 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({ ok: true, result });
   } catch (error: any) {
     console.error("Chat API error:", error);
-    return res.status(500).json({ ok: false, error: error?.message || "Failed to generate reply" });
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || "Failed to generate reply",
+    });
   }
 }
+
