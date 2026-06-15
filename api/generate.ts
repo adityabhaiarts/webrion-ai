@@ -1,6 +1,13 @@
 import { generateWebsiteCode } from "../src/lib/ai";
 
+function readPrompt(req: any) {
+  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+  return typeof body.prompt === "string" ? body.prompt.trim() : "";
+}
+
 export default async function handler(req: any, res: any) {
+  res.setHeader("Cache-Control", "no-store");
+
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
@@ -8,6 +15,7 @@ export default async function handler(req: any, res: any) {
       env: {
         hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
         hasGemini: Boolean(process.env.GEMINI_API_KEY),
+        preferredProvider: process.env.AI_PROVIDER || "auto",
         openAIModel: process.env.OPENAI_MODEL || "not set",
         geminiModel: process.env.GEMINI_MODEL || "not set",
       },
@@ -22,12 +30,19 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { prompt } = req.body || {};
+    const prompt = readPrompt(req);
 
-    if (!prompt || typeof prompt !== "string") {
+    if (!prompt) {
       return res.status(400).json({
         ok: false,
         error: "Prompt is required",
+      });
+    }
+
+    if (prompt.length > 20000) {
+      return res.status(413).json({
+        ok: false,
+        error: "Prompt is too large. Keep it under 20,000 characters.",
       });
     }
 

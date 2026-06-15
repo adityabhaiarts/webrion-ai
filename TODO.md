@@ -1,22 +1,21 @@
-# TODO - Auth & Firebase Fixes
+# TODO - Webrion AI UI and Generation Hardening
 
-## Step 1: Implement Firebase env-based configuration
-- Update `src/lib/firebase.ts` to use `import.meta.env` Firebase config.
-- Remove dependency on `firebase-applet-config.json` for client init.
+## 1. Audit current app flow
+- [x] Inspect routes, dashboard layout, generator page, code viewer, and API routes.
+- [x] Confirm local environment variables exist without exposing secret values.
+- [ ] Run TypeScript and production build checks.
 
-## Step 2: Fix duplicate email signup handling
-- Update `src/pages/Signup.tsx` to catch `auth/email-already-in-use`.
-- Show inline error message (no toast).
+## 2. Make generation reliable
+- [ ] Harden `/api/generate` request validation and AI fallback errors.
+- [ ] Make AI JSON parsing tolerant of fenced JSON, extra prose, and alternate file shapes.
+- [ ] Confirm OpenAI/Gemini-backed generation returns usable website files.
 
-## Step 3: Fix login provider mismatch (Google vs password)
-- Update `src/pages/Login.tsx` to catch relevant Firebase auth errors.
-- If user exists with different credential/provider, show a message to use Google.
+## 3. Improve clean responsive UI
+- [ ] Refresh generator into a cleaner ChatGPT-like workspace.
+- [ ] Fix prompt suggestion contrast and mobile behavior.
+- [ ] Polish generated code/preview viewer for desktop and mobile.
+- [ ] Remove mojibake characters from visible UI.
 
-## Step 4: Build & quick manual test
-- Run `npm run lint` (tsc) and `npm run build`.
-- Manually test:
-  - Google signup/login
-  - Password signup/login for new email
-  - Password login for Google-created email
-  - Duplicate signup same email
-
+## 4. Verify pages
+- [ ] Check dashboard generator, auth pages, landing page, and generated preview path.
+- [ ] Fix any lint/build issues found during verification.

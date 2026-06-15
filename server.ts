@@ -22,38 +22,82 @@ async function startServer() {
   // ======== API ROUTES ========
 
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", message: "Webrion AI Backend Running" });
+    res.json({
+      status: "ok",
+      message: "Webrion AI Backend Running",
+      env: {
+        hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
+        hasGemini: Boolean(process.env.GEMINI_API_KEY),
+        preferredProvider: process.env.AI_PROVIDER || "auto",
+      },
+    });
+  });
+
+  app.get("/api/generate", (req, res) => {
+    res.json({
+      ok: true,
+      message: "Webrion generate API is live",
+      env: {
+        hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
+        hasGemini: Boolean(process.env.GEMINI_API_KEY),
+        preferredProvider: process.env.AI_PROVIDER || "auto",
+        openAIModel: process.env.OPENAI_MODEL || "not set",
+        geminiModel: process.env.GEMINI_MODEL || "not set",
+      },
+    });
   });
 
   app.post("/api/generate", async (req, res) => {
     try {
-      const { prompt } = req.body;
+      const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
       if (!prompt) {
-        return res.status(400).json({ error: "Prompt is required" });
+        return res.status(400).json({ ok: false, error: "Prompt is required" });
       }
 
-      // We use OpenAI for optimal generation of multi-file websites
+      if (prompt.length > 20000) {
+        return res.status(413).json({ ok: false, error: "Prompt is too large. Keep it under 20,000 characters." });
+      }
+
+      if (!process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ ok: false, error: "No AI key found. Add OPENAI_API_KEY or GEMINI_API_KEY." });
+      }
+
       const result = await generateWebsiteCode({ prompt });
-      res.json({ result: result });
+      res.json({ ok: true, result });
     } catch (error: any) {
-      console.error("OpenAI API Error:", error);
-      res.status(500).json({ error: error.message });
+      console.error("Generate API Error:", error);
+      res.status(500).json({ ok: false, error: error.message });
     }
   });
 
-  // Chat endpoint using Gemini for talking/messaging
+  app.get("/api/chat", (req, res) => {
+    res.json({
+      ok: true,
+      message: "Webrion chat API is live",
+      env: {
+        hasGemini: Boolean(process.env.GEMINI_API_KEY),
+        hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
+        preferredProvider: process.env.AI_PROVIDER || "auto",
+      },
+    });
+  });
+
   app.post("/api/chat", async (req, res) => {
     try {
       const { prompt, history } = req.body;
       if (!prompt) {
-        return res.status(400).json({ error: "Prompt is required" });
+        return res.status(400).json({ ok: false, error: "Prompt is required" });
+      }
+
+      if (!process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ ok: false, error: "No AI key found. Add OPENAI_API_KEY or GEMINI_API_KEY." });
       }
 
       const result = await generateChatReply({ prompt, history });
-      res.json({ result: result });
+      res.json({ ok: true, result });
     } catch (error: any) {
-      console.error("Gemini API Error:", error);
-      res.status(500).json({ error: error.message });
+      console.error("Chat API Error:", error);
+      res.status(500).json({ ok: false, error: error.message });
     }
   });
 

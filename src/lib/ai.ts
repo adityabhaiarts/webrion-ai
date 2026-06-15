@@ -13,6 +13,10 @@ export interface ChatConfig {
 let gemini: GoogleGenAI | null = null;
 let openai: OpenAI | null = null;
 
+function hasGeminiKey() {
+  return Boolean(process.env.GEMINI_API_KEY);
+}
+
 function getGeminiClient(): GoogleGenAI {
   const key = process.env.GEMINI_API_KEY;
 
@@ -47,6 +51,7 @@ You are Webrion AI, a premium AI website generator.
 Return ONLY valid JSON.
 Do not return markdown.
 Do not use code fences.
+Do not include any explanation outside the JSON object.
 
 Return this exact JSON structure:
 {
@@ -75,52 +80,76 @@ Return this exact JSON structure:
 }
 
 Rules:
-- Generate complete working code.
-- Make the design modern, premium, responsive.
-- Add WhatsApp button when useful.
-- Do not explain outside JSON.
+- Generate complete working production-quality code for every requested file.
+- Each file must have a "name" and complete "content" string.
+- Make the design modern, premium, accessible, fast-loading, and fully responsive.
+- Prefer semantic HTML, efficient CSS, and lightweight JavaScript.
+- Include SEO metadata, clear CTAs, usable forms, and WhatsApp/call buttons when useful.
+- Keep file paths safe and simple, such as index.html, style.css, script.js, contact.php, README.md.
 `;
 
 export async function generateWebsiteCode({ prompt }: GenerateConfig) {
-  const openaiClient = getOpenAIClient();
+  const preferredProvider = (process.env.AI_PROVIDER || "").toLowerCase();
+  let firstError: unknown = null;
 
-  if (openaiClient) {
+  const runOpenAI = async () => {
+    const openaiClient = getOpenAIClient();
+    if (!openaiClient) return null;
+
+    const response = await openaiClient.chat.completions.create({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: websiteSystemPrompt,
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.25,
+    });
+
+    return response.choices[0]?.message?.content || "";
+  };
+
+  const runGemini = async () => {
+    if (!hasGeminiKey()) return null;
+
+    const geminiClient = getGeminiClient();
+    const response = await geminiClient.models.generateContent({
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      contents: `${websiteSystemPrompt}\n\nUser request:\n${prompt}`,
+    });
+
+    return response.text || "";
+  };
+
+  const providers =
+    preferredProvider === "gemini"
+      ? [runGemini, runOpenAI]
+      : [runOpenAI, runGemini];
+
+  for (const runProvider of providers) {
     try {
-      const response = await openaiClient.chat.completions.create({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: websiteSystemPrompt,
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.25,
-      });
-
-      return response.choices[0]?.message?.content || "";
+      const result = await runProvider();
+      if (result) return result;
     } catch (error) {
-      console.warn("OpenAI failed, trying Gemini fallback:", error);
+      firstError ||= error;
+      console.warn("AI provider failed, trying fallback if available:", error);
     }
   }
 
-  const geminiClient = getGeminiClient();
+  if (firstError instanceof Error) {
+    throw firstError;
+  }
 
-  const response = await geminiClient.models.generateContent({
-    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-    contents: `${websiteSystemPrompt}\n\nUser request:\n${prompt}`,
-  });
-
-  return response.text || "";
+  throw new Error("No AI key found. Add OPENAI_API_KEY or GEMINI_API_KEY.");
 }
 
 export async function generateChatReply({ prompt, history }: ChatConfig) {
-  const geminiClient = getGeminiClient();
-
   const historyText = history
     ? history
         .slice(-8)
@@ -132,14 +161,39 @@ export async function generateChatReply({ prompt, history }: ChatConfig) {
     ? `Previous conversation:\n${historyText}\n\nUser: ${prompt}`
     : prompt;
 
-  const response = await geminiClient.models.generateContent({
-    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-    contents: combinedPrompt,
-    config: {
-      systemInstruction:
-        "You are Webrion AI, a friendly website-building assistant. Give useful, concise replies. When the user asks for code, provide clear code and next steps.",
-    },
-  });
+  const systemInstruction =
+    "You are Webrion AI, a concise website-building assistant. Give practical answers. When the user asks for code, provide clear code and next steps.";
 
-  return response.text || "";
+  if (hasGeminiKey()) {
+    try {
+      const geminiClient = getGeminiClient();
+      const response = await geminiClient.models.generateContent({
+        model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+        contents: combinedPrompt,
+        config: {
+          systemInstruction,
+        },
+      });
+
+      if (response.text) return response.text;
+    } catch (error) {
+      console.warn("Gemini chat failed, trying OpenAI fallback:", error);
+    }
+  }
+
+  const openaiClient = getOpenAIClient();
+  if (openaiClient) {
+    const response = await openaiClient.chat.completions.create({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemInstruction },
+        { role: "user", content: combinedPrompt },
+      ],
+      temperature: 0.35,
+    });
+
+    return response.choices[0]?.message?.content || "";
+  }
+
+  throw new Error("No AI key found. Add GEMINI_API_KEY or OPENAI_API_KEY.");
 }

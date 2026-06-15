@@ -49,8 +49,45 @@ function titleFromPrompt(prompt: string) {
   return prompt.trim().replace(/\s+/g, " ").slice(0, 64) || "Untitled Website";
 }
 
+function normalizeFiles(rawFiles: any): GeneratedFile[] {
+  const fileList = Array.isArray(rawFiles)
+    ? rawFiles
+    : rawFiles && typeof rawFiles === "object"
+      ? Object.entries(rawFiles).map(([name, content]) => ({ name, content }))
+      : [];
+
+  return fileList
+    .map((file: any) => {
+      const name = String(
+        file?.name ||
+          file?.fileName ||
+          file?.filename ||
+          file?.path ||
+          file?.file_path ||
+          ""
+      ).trim();
+
+      const rawContent =
+        file?.content ??
+        file?.code ??
+        file?.source ??
+        file?.body ??
+        "";
+
+      const content =
+        typeof rawContent === "string"
+          ? rawContent
+          : JSON.stringify(rawContent, null, 2);
+
+      return { name, content };
+    })
+    .filter((file) => file.name && file.content);
+}
+
 function normalizeProject(raw: any, prompt: string): GeneratedProject {
-  const files = (raw.files || raw.generated_files || []) as GeneratedFile[];
+  const files = normalizeFiles(
+    raw.files || raw.generated_files || raw.generatedFiles || raw.fileMap
+  );
   const suggestionsRaw = raw.suggestions || raw.improvement_suggestions || [];
 
   const suggestions = Array.isArray(suggestionsRaw)
@@ -76,14 +113,31 @@ function normalizeProject(raw: any, prompt: string): GeneratedProject {
   };
 }
 
-function parseAIResult(result: string, prompt: string) {
-  let cleaned = result.trim();
+function extractJsonPayload(result: unknown) {
+  if (result && typeof result === "object") return result;
 
-  if (cleaned.startsWith("```json")) cleaned = cleaned.slice(7);
-  if (cleaned.startsWith("```")) cleaned = cleaned.slice(3);
-  if (cleaned.endsWith("```")) cleaned = cleaned.slice(0, -3);
+  let cleaned = String(result || "").trim();
+  cleaned = cleaned
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
 
-  return normalizeProject(JSON.parse(cleaned), prompt);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+
+    if (start >= 0 && end > start) {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    }
+
+    throw new Error("AI did not return valid JSON.");
+  }
+}
+
+function parseAIResult(result: unknown, prompt: string) {
+  return normalizeProject(extractJsonPayload(result), prompt);
 }
 
 export default function DashboardGenerator() {
@@ -99,7 +153,7 @@ export default function DashboardGenerator() {
     {
       role: "assistant",
       content:
-        "Hi, I’m Webrion AI. Send a website idea and I’ll reply with clean code, preview, ZIP download, and deployment steps.",
+        "Hi, I'm Webrion AI. Send a website idea and I'll reply with clean code, preview, ZIP download, and deployment steps.",
       createdAt: Date.now(),
     },
   ]);
@@ -325,11 +379,11 @@ export default function DashboardGenerator() {
 
       if (!response.ok) {
         throw new Error(
-          data?.error || "AI API failed. Check OPENAI_API_KEY in Vercel."
+          data?.error || "AI API failed. Check OPENAI_API_KEY or GEMINI_API_KEY."
         );
       }
 
-      const project = parseAIResult(data?.result || "", prompt);
+      const project = parseAIResult(data?.result ?? data, prompt);
 
       if (!project.files.length) {
         throw new Error("AI returned no files. Try a more detailed prompt.");
@@ -337,7 +391,7 @@ export default function DashboardGenerator() {
 
       const assistantMessage: ChatMessage = {
         role: "assistant",
-        content: `Done — I generated ${project.files.length} files for ${project.projectName}. Preview, copy, or download the ZIP below.`,
+        content: `Done - I generated ${project.files.length} files for ${project.projectName}. Preview, copy, or download the ZIP below.`,
         project,
         createdAt: Date.now(),
       };
@@ -367,7 +421,7 @@ export default function DashboardGenerator() {
 
       const failure: ChatMessage = {
         role: "assistant",
-        content: `I could not generate this yet: ${errorMessage}\n\nCheck Vercel: OPENAI_API_KEY, /api/generate route, and deployment logs.`,
+        content: `I could not generate this yet: ${errorMessage}\n\nCheck API keys, the /api/generate route, and deployment logs.`,
         createdAt: Date.now(),
       };
 
@@ -389,168 +443,176 @@ export default function DashboardGenerator() {
   };
 
   return (
-    <div className="mx-auto flex min-h-full max-w-6xl flex-col px-3 py-4 text-slate-950 md:px-6">
+    <div className="flex h-full min-h-[calc(100vh-4rem)] flex-col bg-[#f7f7f8] text-slate-950">
       <Toast message={toast} />
 
-      <header className="mb-4 flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-            <Sparkles className="h-3.5 w-3.5" />
-            Webrion AI Generator
-          </div>
-
-          <h1 className="text-2xl font-black tracking-tight md:text-3xl">
-            Build websites by chatting
-          </h1>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Send a prompt, get code, preview, ZIP, and deployment steps.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleDownloadLast}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-950 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-600"
-        >
-          <ArrowDownToLine className="h-4 w-4" />
-          Download last ZIP
-        </button>
-      </header>
-
-      <PromptSuggestions onSelect={setInput} />
-
-      <section className="custom-scrollbar mb-4 flex min-h-[48vh] flex-1 flex-col gap-4 overflow-y-auto rounded-3xl border border-slate-200 bg-white p-3 shadow-sm md:p-5">
-        {messages.map((message, index) => (
-          <div
-            key={`${message.createdAt}-${index}`}
-            className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
-          >
-            {message.role === "assistant" && message.project ? (
-              <div className="w-full">
-                <div className="mb-3 flex items-center gap-3 text-sm font-semibold text-slate-600">
-                  <div className="grid h-8 w-8 place-items-center rounded-full bg-emerald-600 text-white">
-                    <Bot className="h-4 w-4" />
-                  </div>
-                  {message.content}
-                </div>
-
-                <CodeViewer
-                  project={message.project}
-                  onDownload={() => showToast("ZIP download started.")}
-                />
-              </div>
-            ) : (
-              <div
-                className={`flex max-w-[92%] gap-3 rounded-3xl px-4 py-3 text-sm leading-7 shadow-sm md:max-w-[76%] ${
-                  message.role === "user"
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-200 bg-slate-50 text-slate-700"
-                }`}
-              >
-                <div
-                  className={`mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full ${
-                    message.role === "user"
-                      ? "bg-white text-slate-950"
-                      : "bg-emerald-600 text-white"
-                  }`}
-                >
-                  {message.role === "user" ? (
-                    <UserRound className="h-4 w-4" />
-                  ) : (
-                    <Bot className="h-4 w-4" />
-                  )}
-                </div>
-
-                <p className="whitespace-pre-wrap">{message.content}</p>
-              </div>
-            )}
-          </div>
-        ))}
-
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-              Generating code
-              <span className="flex gap-1">
-                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
-                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
-                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
-              </span>
+      <header className="shrink-0 border-b border-slate-200 bg-white/85 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+              <Sparkles className="h-3.5 w-3.5" />
+              Webrion AI Generator
             </div>
+
+            <h1 className="text-2xl font-black tracking-tight">
+              Build websites by chatting
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Generate code, preview it, copy it, and download a ZIP from one workspace.
+            </p>
           </div>
-        )}
-
-        <div ref={bottomRef} />
-      </section>
-
-      <form
-        onSubmit={handleSubmit}
-        className="sticky bottom-0 rounded-3xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-200/70"
-      >
-        <div className="mb-3 flex flex-wrap gap-2">
-          {[
-            ["html", "HTML"],
-            ["css", "CSS"],
-            ["javascript", "JS"],
-            ["php", "PHP form"],
-            ["readme", "README"],
-            ["deploymentGuide", "Deploy guide"],
-          ].map(([key, label]) => (
-            <label
-              key={key}
-              className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600"
-            >
-              <input
-                type="checkbox"
-                checked={options[key as keyof GenerationOptions]}
-                onChange={() => toggleOption(key as keyof GenerationOptions)}
-                className="h-3.5 w-3.5 accent-emerald-600"
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-
-        <div className="flex items-end gap-2">
-          <textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            disabled={isLoading}
-            rows={2}
-            placeholder="Message Webrion AI... e.g. Create a premium hospital website with doctors, booking and WhatsApp button"
-            className="custom-scrollbar min-h-14 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
-          />
 
           <button
             type="button"
-            onClick={() => setInput("")}
-            className="hidden rounded-2xl border border-slate-200 p-4 text-slate-500 hover:bg-slate-50 sm:block"
-            aria-label="Clear prompt"
+            onClick={handleDownloadLast}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-950 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-600"
           >
-            <Eraser className="h-5 w-5" />
-          </button>
-
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="rounded-2xl bg-emerald-600 p-4 text-white shadow-lg shadow-emerald-100 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Send prompt"
-          >
-            {isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
+            <ArrowDownToLine className="h-4 w-4" />
+            Download last ZIP
           </button>
         </div>
+      </header>
 
-        <div className="mt-2 flex items-center gap-2 px-1 text-xs text-slate-400">
-          <Code2 className="h-3.5 w-3.5" />
-          Code generation uses serverless API routes, so API keys stay hidden.
+      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 sm:px-5">
+        <div className="shrink-0 py-4">
+          <PromptSuggestions onSelect={setInput} />
         </div>
-      </form>
+
+        <section className="custom-scrollbar flex min-h-[42vh] flex-1 flex-col gap-5 overflow-y-auto px-1 pb-4">
+          {messages.map((message, index) => (
+            <div
+              key={`${message.createdAt}-${index}`}
+              className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
+            >
+              {message.role === "assistant" && message.project ? (
+                <div className="w-full">
+                  <div className="mx-auto mb-3 flex w-full max-w-4xl items-center gap-3 text-sm font-semibold text-slate-600">
+                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-600 text-white">
+                      <Bot className="h-4 w-4" />
+                    </div>
+                    <span>{message.content}</span>
+                  </div>
+
+                  <CodeViewer
+                    project={message.project}
+                    onDownload={() => showToast("ZIP download started.")}
+                  />
+                </div>
+              ) : (
+                <div
+                  className={`flex max-w-[92%] gap-3 rounded-lg px-4 py-3 text-sm leading-7 shadow-sm md:max-w-[76%] ${
+                    message.role === "user"
+                      ? "bg-slate-950 text-white"
+                      : "border border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  <div
+                    className={`mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full ${
+                      message.role === "user"
+                        ? "bg-white text-slate-950"
+                        : "bg-emerald-600 text-white"
+                    }`}
+                  >
+                    {message.role === "user" ? (
+                      <UserRound className="h-4 w-4" />
+                    ) : (
+                      <Bot className="h-4 w-4" />
+                    )}
+                  </div>
+
+                  <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+                <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                Generating code
+                <span className="flex gap-1">
+                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
+                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
+                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </section>
+
+        <div className="sticky bottom-0 -mx-3 shrink-0 bg-gradient-to-t from-[#f7f7f8] via-[#f7f7f8] to-transparent px-3 pb-3 pt-4 sm:-mx-5 sm:px-5">
+          <form
+            onSubmit={handleSubmit}
+            className="mx-auto max-w-4xl rounded-xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-200/70"
+          >
+            <div className="mb-3 flex flex-wrap gap-2">
+              {[
+                ["html", "HTML"],
+                ["css", "CSS"],
+                ["javascript", "JS"],
+                ["php", "PHP form"],
+                ["readme", "README"],
+                ["deploymentGuide", "Deploy guide"],
+              ].map(([key, label]) => (
+                <label
+                  key={key}
+                  className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white"
+                >
+                  <input
+                    type="checkbox"
+                    checked={options[key as keyof GenerationOptions]}
+                    onChange={() => toggleOption(key as keyof GenerationOptions)}
+                    className="h-3.5 w-3.5 accent-emerald-600"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+
+            <div className="flex items-end gap-2">
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                disabled={isLoading}
+                rows={2}
+                placeholder="Message Webrion AI... e.g. Create a premium hospital website with doctors, booking and WhatsApp button"
+                className="custom-scrollbar min-h-14 flex-1 resize-none rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+              />
+
+              <button
+                type="button"
+                onClick={() => setInput("")}
+                className="hidden rounded-lg border border-slate-200 p-4 text-slate-500 transition hover:bg-slate-50 sm:block"
+                aria-label="Clear prompt"
+              >
+                <Eraser className="h-5 w-5" />
+              </button>
+
+              <button
+                type="submit"
+                disabled={!input.trim() || isLoading}
+                className="rounded-lg bg-emerald-600 p-4 text-white shadow-lg shadow-emerald-100 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Send prompt"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+
+            <div className="mt-2 flex items-center gap-2 px-1 text-xs text-slate-400">
+              <Code2 className="h-3.5 w-3.5" />
+              Code generation uses serverless API routes, so API keys stay hidden.
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }
