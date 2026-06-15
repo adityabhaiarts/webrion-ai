@@ -45,6 +45,17 @@ function getOpenAIClient(): OpenAI | null {
   return openai;
 }
 
+function describeAIError(provider: string, error: any) {
+  const status = error?.status ? ` ${error.status}` : "";
+  const code = error?.code || error?.error?.code || error?.error?.status;
+  const message =
+    error?.error?.message ||
+    error?.message ||
+    "Unknown provider error";
+
+  return `${provider}${status}${code ? ` ${code}` : ""}: ${message}`;
+}
+
 const websiteSystemPrompt = `
 You are Webrion AI, a premium AI website generator.
 
@@ -90,7 +101,7 @@ Rules:
 
 export async function generateWebsiteCode({ prompt }: GenerateConfig) {
   const preferredProvider = (process.env.AI_PROVIDER || "").toLowerCase();
-  let firstError: unknown = null;
+  const failures: string[] = [];
 
   const runOpenAI = async () => {
     const openaiClient = getOpenAIClient();
@@ -127,23 +138,29 @@ export async function generateWebsiteCode({ prompt }: GenerateConfig) {
     return response.text || "";
   };
 
-  const providers =
+  const providers: Array<[string, () => Promise<string | null>]> =
     preferredProvider === "gemini"
-      ? [runGemini, runOpenAI]
-      : [runOpenAI, runGemini];
+      ? [
+          ["Gemini", runGemini],
+          ["OpenAI", runOpenAI],
+        ]
+      : [
+          ["OpenAI", runOpenAI],
+          ["Gemini", runGemini],
+        ];
 
-  for (const runProvider of providers) {
+  for (const [providerName, runProvider] of providers) {
     try {
       const result = await runProvider();
       if (result) return result;
     } catch (error) {
-      firstError ||= error;
+      failures.push(describeAIError(providerName, error));
       console.warn("AI provider failed, trying fallback if available:", error);
     }
   }
 
-  if (firstError instanceof Error) {
-    throw firstError;
+  if (failures.length) {
+    throw new Error(`AI providers failed. ${failures.join(" | ")}`);
   }
 
   throw new Error("No AI key found. Add OPENAI_API_KEY or GEMINI_API_KEY.");
