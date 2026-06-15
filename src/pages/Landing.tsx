@@ -42,7 +42,7 @@ export default function Landing() {
           </div>
           <div className="space-y-5 p-5 sm:p-6">
             <div className="flex justify-end"><div className="max-w-[85%] rounded-3xl bg-slate-950 px-4 py-3 text-sm leading-6 text-white">Create a premium hospital website with doctors, appointment form, WhatsApp button and reviews.</div></div>
-            <div className="flex gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"><MessageSquareText className="h-4 w-4" /></div><div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">Done — generated 5 files with preview, ZIP download and deployment steps.</div></div>
+            <div className="flex gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"><MessageSquareText className="h-4 w-4" /></div><div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">Done - generated 5 files with preview, ZIP download and deployment steps.</div></div>
             <div className="grid gap-3 sm:grid-cols-3">
               {[{ icon: Files, label: "File tree" }, { icon: Eye, label: "Live preview" }, { icon: Download, label: "ZIP export" }].map((item) => <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><item.icon className="mb-3 h-5 w-5 text-emerald-600" /><p className="text-sm font-bold text-slate-900">{item.label}</p></div>)}
             </div>
