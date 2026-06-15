@@ -15,7 +15,7 @@ export default async function handler(req: any, res: any) {
       env: {
         hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
         hasGemini: Boolean(process.env.GEMINI_API_KEY),
-        preferredProvider: process.env.AI_PROVIDER || "auto",
+        preferredProvider: process.env.AI_PROVIDER || "gemini",
         openAIModel: process.env.OPENAI_MODEL || "not set",
         geminiModel: process.env.GEMINI_MODEL || "not set",
       },

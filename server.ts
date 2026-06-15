@@ -28,7 +28,7 @@ async function startServer() {
       env: {
         hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
         hasGemini: Boolean(process.env.GEMINI_API_KEY),
-        preferredProvider: process.env.AI_PROVIDER || "auto",
+        preferredProvider: process.env.AI_PROVIDER || "gemini",
       },
     });
   });
@@ -40,7 +40,7 @@ async function startServer() {
       env: {
         hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
         hasGemini: Boolean(process.env.GEMINI_API_KEY),
-        preferredProvider: process.env.AI_PROVIDER || "auto",
+        preferredProvider: process.env.AI_PROVIDER || "gemini",
         openAIModel: process.env.OPENAI_MODEL || "not set",
         geminiModel: process.env.GEMINI_MODEL || "not set",
       },
@@ -77,7 +77,7 @@ async function startServer() {
       env: {
         hasGemini: Boolean(process.env.GEMINI_API_KEY),
         hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
-        preferredProvider: process.env.AI_PROVIDER || "auto",
+        preferredProvider: process.env.AI_PROVIDER || "gemini",
       },
     });
   });

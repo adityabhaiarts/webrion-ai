@@ -149,14 +149,7 @@ export default function DashboardGenerator() {
   const [options, setOptions] =
     useState<GenerationOptions>(defaultGenerationOptions);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      content:
-        "Hi, I'm Webrion AI. Send a website idea and I'll reply with clean code, preview, ZIP download, and deployment steps.",
-      createdAt: Date.now(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   const [chatId, setChatId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -236,13 +229,7 @@ export default function DashboardGenerator() {
   const startNewChat = () => {
     setChatId(null);
     setInput("");
-    setMessages([
-      {
-        role: "assistant",
-        content: "New chat ready. Describe the website you want to create.",
-        createdAt: Date.now(),
-      },
-    ]);
+    setMessages([]);
   };
 
   const toggleOption = (key: keyof GenerationOptions) => {
@@ -442,24 +429,26 @@ export default function DashboardGenerator() {
     showToast("ZIP download started.");
   };
 
+  const hasConversation = messages.length > 0 || isLoading;
+
   return (
     <div className="flex h-full min-h-[calc(100vh-4rem)] flex-col bg-[#f7f7f8] text-slate-950">
       <Toast message={toast} />
 
-      <header className="shrink-0 border-b border-slate-200 bg-white/85 backdrop-blur">
+      <header className="shrink-0 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
             <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
               <Sparkles className="h-3.5 w-3.5" />
-              Webrion AI Generator
+              Gemini 2.5 Flash
             </div>
 
             <h1 className="text-2xl font-black tracking-tight">
-              Build websites by chatting
+              What should Webrion build today?
             </h1>
 
             <p className="mt-1 text-sm text-slate-500">
-              Generate code, preview it, copy it, and download a ZIP from one workspace.
+              Ask for code, landing pages, forms, fixes, previews, and ZIP exports.
             </p>
           </div>
 
@@ -475,69 +464,84 @@ export default function DashboardGenerator() {
       </header>
 
       <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 sm:px-5">
-        <div className="shrink-0 py-4">
-          <PromptSuggestions onSelect={setInput} />
-        </div>
-
-        <section className="custom-scrollbar flex min-h-[42vh] flex-1 flex-col gap-5 overflow-y-auto px-1 pb-4">
-          {messages.map((message, index) => (
-            <div
-              key={`${message.createdAt}-${index}`}
-              className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
-            >
-              {message.role === "assistant" && message.project ? (
-                <div className="w-full">
-                  <div className="mx-auto mb-3 flex w-full max-w-4xl items-center gap-3 text-sm font-semibold text-slate-600">
-                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-600 text-white">
-                      <Bot className="h-4 w-4" />
-                    </div>
-                    <span>{message.content}</span>
-                  </div>
-
-                  <CodeViewer
-                    project={message.project}
-                    onDownload={() => showToast("ZIP download started.")}
-                  />
-                </div>
-              ) : (
+        <section className="custom-scrollbar flex min-h-[42vh] flex-1 flex-col overflow-y-auto px-1 pb-4">
+          {!hasConversation ? (
+            <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
+              <div className="mb-7 grid h-20 w-20 place-items-center rounded-3xl bg-emerald-500 text-white shadow-2xl shadow-emerald-200">
+                <Sparkles className="h-9 w-9" />
+              </div>
+              <h2 className="max-w-3xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+                Built to write clean website code.
+              </h2>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-500 sm:text-lg">
+                Describe any business website. Webrion AI returns files, preview, deployment steps, and improvement ideas.
+              </p>
+              <div className="mt-8 w-full max-w-5xl">
+                <PromptSuggestions onSelect={setInput} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-5 pt-4">
+              {messages.map((message, index) => (
                 <div
-                  className={`flex max-w-[92%] gap-3 rounded-lg px-4 py-3 text-sm leading-7 shadow-sm md:max-w-[76%] ${
-                    message.role === "user"
-                      ? "bg-slate-950 text-white"
-                      : "border border-slate-200 bg-white text-slate-700"
-                  }`}
+                  key={`${message.createdAt}-${index}`}
+                  className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
                 >
-                  <div
-                    className={`mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full ${
-                      message.role === "user"
-                        ? "bg-white text-slate-950"
-                        : "bg-emerald-600 text-white"
-                    }`}
-                  >
-                    {message.role === "user" ? (
-                      <UserRound className="h-4 w-4" />
-                    ) : (
-                      <Bot className="h-4 w-4" />
-                    )}
-                  </div>
+                  {message.role === "assistant" && message.project ? (
+                    <div className="w-full">
+                      <div className="mx-auto mb-3 flex w-full max-w-4xl items-center gap-3 text-sm font-semibold text-slate-600">
+                        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-600 text-white">
+                          <Bot className="h-4 w-4" />
+                        </div>
+                        <span>{message.content}</span>
+                      </div>
 
-                  <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                      <CodeViewer
+                        project={message.project}
+                        onDownload={() => showToast("ZIP download started.")}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className={`flex max-w-[92%] gap-3 rounded-xl px-4 py-3 text-sm leading-7 shadow-sm md:max-w-[76%] ${
+                        message.role === "user"
+                          ? "bg-slate-950 text-white"
+                          : "border border-slate-200 bg-white text-slate-700"
+                      }`}
+                    >
+                      <div
+                        className={`mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full ${
+                          message.role === "user"
+                            ? "bg-white text-slate-950"
+                            : "bg-emerald-600 text-white"
+                        }`}
+                      >
+                        {message.role === "user" ? (
+                          <UserRound className="h-4 w-4" />
+                        ) : (
+                          <Bot className="h-4 w-4" />
+                        )}
+                      </div>
+
+                      <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+                    <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                    Generating with Gemini
+                    <span className="flex gap-1">
+                      <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
+                      <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
+                      <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
+                    </span>
+                  </div>
                 </div>
               )}
-            </div>
-          ))}
-
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-                <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-                Generating code
-                <span className="flex gap-1">
-                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
-                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
-                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
-                </span>
-              </div>
             </div>
           )}
 
@@ -547,7 +551,7 @@ export default function DashboardGenerator() {
         <div className="sticky bottom-0 -mx-3 shrink-0 bg-gradient-to-t from-[#f7f7f8] via-[#f7f7f8] to-transparent px-3 pb-3 pt-4 sm:-mx-5 sm:px-5">
           <form
             onSubmit={handleSubmit}
-            className="mx-auto max-w-4xl rounded-xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-200/70"
+            className="mx-auto max-w-4xl rounded-2xl border border-emerald-200 bg-white p-3 shadow-xl shadow-slate-200/70 focus-within:border-emerald-500"
           >
             <div className="mb-3 flex flex-wrap gap-2">
               {[
@@ -579,14 +583,14 @@ export default function DashboardGenerator() {
                 onChange={(event) => setInput(event.target.value)}
                 disabled={isLoading}
                 rows={2}
-                placeholder="Message Webrion AI... e.g. Create a premium hospital website with doctors, booking and WhatsApp button"
-                className="custom-scrollbar min-h-14 flex-1 resize-none rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+                placeholder="Ask Webrion AI to generate a website, fix code, or create a PHP form..."
+                className="custom-scrollbar min-h-14 flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
               />
 
               <button
                 type="button"
                 onClick={() => setInput("")}
-                className="hidden rounded-lg border border-slate-200 p-4 text-slate-500 transition hover:bg-slate-50 sm:block"
+                className="hidden rounded-xl border border-slate-200 p-4 text-slate-500 transition hover:bg-slate-50 sm:block"
                 aria-label="Clear prompt"
               >
                 <Eraser className="h-5 w-5" />
@@ -595,7 +599,7 @@ export default function DashboardGenerator() {
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading}
-                className="rounded-lg bg-emerald-600 p-4 text-white shadow-lg shadow-emerald-100 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-emerald-600 p-4 text-white shadow-lg shadow-emerald-100 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Send prompt"
               >
                 {isLoading ? (
@@ -608,7 +612,7 @@ export default function DashboardGenerator() {
 
             <div className="mt-2 flex items-center gap-2 px-1 text-xs text-slate-400">
               <Code2 className="h-3.5 w-3.5" />
-              Code generation uses serverless API routes, so API keys stay hidden.
+              Gemini generation runs on server API routes, so keys stay hidden.
             </div>
           </form>
         </div>

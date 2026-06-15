@@ -12,6 +12,7 @@ export interface ChatConfig {
 
 let gemini: GoogleGenAI | null = null;
 let openai: OpenAI | null = null;
+const DEFAULT_AI_PROVIDER = "gemini";
 
 function hasGeminiKey() {
   return Boolean(process.env.GEMINI_API_KEY);
@@ -100,7 +101,7 @@ Rules:
 `;
 
 export async function generateWebsiteCode({ prompt }: GenerateConfig) {
-  const preferredProvider = (process.env.AI_PROVIDER || "").toLowerCase();
+  const preferredProvider = (process.env.AI_PROVIDER || DEFAULT_AI_PROVIDER).toLowerCase();
   const failures: string[] = [];
 
   const runOpenAI = async () => {
@@ -133,6 +134,10 @@ export async function generateWebsiteCode({ prompt }: GenerateConfig) {
     const response = await geminiClient.models.generateContent({
       model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
       contents: `${websiteSystemPrompt}\n\nUser request:\n${prompt}`,
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.25,
+      },
     });
 
     return response.text || "";

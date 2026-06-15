@@ -5,7 +5,6 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import type { ReactNode } from "react";
-import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Layout from "./components/Layout";
@@ -43,7 +42,7 @@ export default function App() {
         <Routes>
           {/* Public Top Layer */}
           <Route element={<Layout />}>
-            <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+            <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
           </Route>
