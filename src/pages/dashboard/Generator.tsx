@@ -503,17 +503,17 @@ export default function DashboardGenerator() {
                     </div>
                   ) : (
                     <div
-                      className={`flex max-w-[92%] gap-3 rounded-xl px-4 py-3 text-sm leading-7 shadow-sm md:max-w-[76%] ${
+                      className={`flex max-w-[92%] gap-3 rounded-xl px-4 py-3 text-sm leading-7 shadow-sm transition-all md:max-w-[76%] ${
                         message.role === "user"
                           ? "bg-slate-950 text-white"
-                          : "border border-slate-200 bg-white text-slate-700"
+                          : "border border-slate-200 bg-white/70 text-slate-700 backdrop-blur"
                       }`}
                     >
                       <div
-                        className={`mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full ${
+                        className={`mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full ring-1 ring-black/5 ${
                           message.role === "user"
                             ? "bg-white text-slate-950"
-                            : "bg-emerald-600 text-white"
+                            : "bg-emerald-600/90 text-white"
                         }`}
                       >
                         {message.role === "user" ? (
@@ -533,7 +533,7 @@ export default function DashboardGenerator() {
                 <div className="flex justify-start">
                   <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
                     <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-                    Generating with Gemini
+                    Generating with Webrion AI
                     <span className="flex gap-1">
                       <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
                       <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-500" />
@@ -612,7 +612,7 @@ export default function DashboardGenerator() {
 
             <div className="mt-2 flex items-center gap-2 px-1 text-xs text-slate-400">
               <Code2 className="h-3.5 w-3.5" />
-              Gemini generation runs on server API routes, so keys stay hidden.
+              OpenRouter generation runs on server API routes, so keys stay hidden.
             </div>
           </form>
         </div>
