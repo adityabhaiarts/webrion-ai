@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.8.0",
+    "@postman/postman-mcp-server": "^2.9.1",
     "@supabase/supabase-js": "^2.108.1",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
