@@ -1,4 +1,5 @@
-import { 
+import React, { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
   addDoc,
   collection,
   doc,
@@ -8,6 +9,8 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+
+
 import {
   ArrowDownToLine,
   Bot,
@@ -48,12 +51,13 @@ function titleFromPrompt(prompt: string) {
   return prompt.trim().replace(/\s+/g, " ").slice(0, 64) || "Untitled Website";
 }
 
-function normalizeFiles(rawFiles: any): GeneratedFile[] {
+function normalizeFiles(rawFiles: unknown): GeneratedFile[] {
   const fileList = Array.isArray(rawFiles)
     ? rawFiles
     : rawFiles && typeof rawFiles === "object"
-      ? Object.entries(rawFiles).map(([name, content]) => ({ name, content }))
+      ? Object.entries(rawFiles as Record<string, unknown>).map(([name, content]) => ({ name, content }))
       : [];
+
 
   return fileList
     .map((file: any) => {
@@ -369,11 +373,18 @@ export default function DashboardGenerator() {
         );
       }
 
-      const project = parseAIResult(data?.result ?? data, prompt);
+      const payload = data ?? {};
+
+      if (payload.success === false) {
+        throw new Error(payload.error || "AI generation failed.");
+      }
+
+      const project = parseAIResult(payload.result ?? payload, prompt);
 
       if (!project.files.length) {
         throw new Error("AI returned no files. Try a more detailed prompt.");
       }
+
 
       const assistantMessage: ChatMessage = {
         role: "assistant",

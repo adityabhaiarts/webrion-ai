@@ -52,6 +52,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
+
       if (currentUser) {
         try {
           const nextProfile = await ensureUserProfile(currentUser);
